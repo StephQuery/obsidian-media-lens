@@ -154,18 +154,17 @@ export class MediaLensView extends ItemView {
 		if (this.primaryFile) {
 			container.createEl("hr", { cls: "media-lens-divider" });
 
-			// Section 1: Transport
-			if (this.primaryVideo && this.compareVideo) {
-				if (this.syncEnabled) {
-					this.renderUnifiedTransport(container);
-				} else {
-					this.renderSyncToggle(container);
-				}
+			// Transport (only when synced)
+			if (this.primaryVideo && this.compareVideo && this.syncEnabled) {
+				this.renderUnifiedTransport(container);
 			}
 
-			// Section 2: Actions (capture + wipe + save)
+			// Actions row
 			container.createEl("hr", { cls: "media-lens-divider" });
 			const actionRow = container.createDiv({ cls: "media-lens-action-row" });
+			if (this.primaryVideo && this.compareVideo) {
+				this.renderSyncToggle(actionRow);
+			}
 			if (this.primaryFile.category === "video") {
 				this.renderCaptureButton(actionRow);
 			}
@@ -464,16 +463,15 @@ export class MediaLensView extends ItemView {
 	}
 
 	private renderSyncToggle(parent: HTMLElement) {
-		const wrapper = parent.createDiv({ cls: "media-lens-sync-bar" });
-		const btn = wrapper.createEl("button", {
-			cls: `media-lens-btn media-lens-btn-sync${this.syncEnabled ? " media-lens-btn-sync--active" : ""}`,
+		const btn = parent.createEl("button", {
+			cls: `media-lens-btn media-lens-btn-save${this.syncEnabled ? " media-lens-btn-sync--active" : ""}`,
 		});
 		const iconEl = btn.createSpan();
-		setIcon(iconEl, "link");
-		btn.createSpan({ text: this.syncEnabled ? "Synced" : "Sync playback" });
+		setIcon(iconEl, this.syncEnabled ? "unlink" : "link");
+		btn.createSpan({ text: this.syncEnabled ? "Unsync playback" : "Sync playback" });
 
 		btn.addEventListener("click", () => {
-			this.syncEnabled = true;
+			this.syncEnabled = !this.syncEnabled;
 			this.render();
 		});
 	}
@@ -497,19 +495,6 @@ export class MediaLensView extends ItemView {
 		vidA.addEventListener("ended", () => drift.stop());
 
 		const bar = parent.createDiv({ cls: "media-lens-transport" });
-
-		// Unsync button
-		const unsyncBtn = bar.createEl("button", {
-			cls: "media-lens-btn media-lens-btn-sync media-lens-btn-sync--active",
-			attr: { "aria-label": "Unsync playback" },
-		});
-		const unsyncIcon = unsyncBtn.createSpan();
-		setIcon(unsyncIcon, "link");
-		unsyncBtn.createSpan({ text: "Synced" });
-		unsyncBtn.addEventListener("click", () => {
-			this.syncEnabled = false;
-			this.render();
-		});
 
 		// Seek bar
 		const seekRow = bar.createDiv({ cls: "media-lens-transport-seek" });

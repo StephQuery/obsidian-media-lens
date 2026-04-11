@@ -1,4 +1,4 @@
-import { Modal, setIcon } from "obsidian";
+import { Modal, Notice, setIcon } from "obsidian";
 import type MediaLensPlugin from "../main";
 import { getMimeType } from "../utils/media";
 import { createDriftController, formatTimestamp, isVideoReady, type DriftController } from "../utils/video-sync";
@@ -283,11 +283,17 @@ export class WipeModal extends Modal {
 		skipBack.addEventListener("click", () => step(-10));
 		skipFwd.addEventListener("click", () => step(10));
 
-		// Capture — composite wipe view + individual frames
+		// Capture — pause, align, wait for seek, then composite + individual frames
 		captureBtn.addEventListener("click", () => {
-			this.syncPause(vidA, vidB);
-			vidB.currentTime = vidA.currentTime;
-			void this.captureWipeComposite(vidA, vidB);
+			void (async () => {
+				this.syncPause(vidA, vidB);
+				// Wait for seeks to complete
+				await Promise.all([
+					new Promise<void>(r => { if (!vidA.seeking) r(); else vidA.addEventListener("seeked", () => r(), { once: true }); }),
+					new Promise<void>(r => { if (!vidB.seeking) r(); else vidB.addEventListener("seeked", () => r(), { once: true }); }),
+				]);
+				await this.captureWipeComposite(vidA, vidB);
+			})();
 		});
 	}
 
@@ -312,6 +318,7 @@ export class WipeModal extends Modal {
 
 	private async captureWipeComposite(vidA: HTMLVideoElement, vidB: HTMLVideoElement) {
 		if (!isVideoReady(vidA) || !isVideoReady(vidB)) {
+			new Notice("Video not ready for capture");
 			return;
 		}
 		const w = vidA.videoWidth;
@@ -358,9 +365,13 @@ export class WipeModal extends Modal {
 		const blob = await new Promise<Blob | null>((resolve) => {
 			canvas.toBlob(resolve, "image/png");
 		});
-		if (!blob) return;
+		if (!blob) {
+			new Notice("Failed to capture wipe frame");
+			return;
+		}
 
 		this.onCapture(vidA, vidB, blob);
+		new Notice(`Wipe frame captured at ${formatTimestamp(vidA.currentTime)}`);
 	}
 
 

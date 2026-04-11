@@ -374,31 +374,7 @@
 	font-weight: var(--font-semibold);
 }
 
-/* ── Sync Playback ── */
-
-.media-lens-sync-bar {
-	display: flex;
-	justify-content: center;
-}
-
-.media-lens-btn-sync {
-	display: flex;
-	align-items: center;
-	gap: var(--size-4-1);
-	padding: var(--size-2-2) var(--size-4-2);
-	font-size: var(--font-ui-smaller);
-	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-s);
-	background: transparent;
-	color: var(--text-muted);
-	cursor: pointer;
-	transition: all 100ms ease;
-}
-
-.media-lens-btn-sync:hover {
-	color: var(--text-normal);
-	border-color: var(--text-muted);
-}
+/* ── Sync Active State ── */
 
 .media-lens-btn-sync--active {
 	color: var(--text-normal);
