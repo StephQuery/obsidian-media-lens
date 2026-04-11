@@ -14,6 +14,7 @@ import type { MetadataSection } from "../parsers/types";
 import { generateSingleNote, generateComparisonNote, generateNoteName } from "../notes/note-generator";
 import type { NoteCapture } from "../notes/note-generator";
 import { saveNote, copyExternalFileToVault, saveCaptureToVault } from "../notes/note-writer";
+import { openWipeModal } from "./WipeModal";
 
 export const VIEW_TYPE_MEDIA_LENS = "media-lens-view";
 
@@ -35,7 +36,7 @@ export class MediaLensView extends ItemView {
 	private primaryVideo: HTMLVideoElement | null = null;
 	private compareVideo: HTMLVideoElement | null = null;
 	private driftRafCleanup: (() => void) | null = null;
-	private captures: Array<{ slot: "primary" | "compare"; timestamp: number; blob: Blob; label: string }> = [];
+	private captures: Array<{ slot: "primary" | "compare" | "wipe"; timestamp: number; blob: Blob; label: string }> = [];
 	private captureStripEl: HTMLElement | null = null;
 
 	constructor(leaf: WorkspaceLeaf, plugin: MediaLensPlugin) {
@@ -136,6 +137,10 @@ export class MediaLensView extends ItemView {
 				} else {
 					this.renderSyncToggle(actionsBar);
 				}
+			}
+
+			if (this.primaryFile && this.compareFile && this.primaryFile.category === "video") {
+				this.renderWipeButton(actionsBar);
 			}
 
 			this.renderCaptureStrip(actionsBar);
@@ -362,6 +367,37 @@ export class MediaLensView extends ItemView {
 		btn.addEventListener("click", () => {
 			video.muted = !video.muted;
 			updateIcon();
+		});
+	}
+
+	private renderWipeButton(parent: HTMLElement) {
+		if (!this.primaryFile || !this.compareFile) return;
+		const fileA = this.primaryFile;
+		const fileB = this.compareFile;
+
+		const wrapper = parent.createDiv({ cls: "media-lens-save-bar" });
+		const btn = wrapper.createEl("button", {
+			cls: "media-lens-btn media-lens-btn-save",
+		});
+		const iconEl = btn.createSpan();
+		setIcon(iconEl, "split");
+		btn.createSpan({ text: "Wipe comparison" });
+
+		btn.addEventListener("click", () => {
+			openWipeModal(
+				this.plugin,
+				{ name: fileA.name, buffer: fileA.buffer, category: fileA.category, frameRate: this.getFrameRate(fileA) },
+				{ name: fileB.name, buffer: fileB.buffer, category: fileB.category, frameRate: this.getFrameRate(fileB) },
+				(vidA, vidB, wipeBlob) => {
+					if (wipeBlob) {
+						const time = vidA.currentTime;
+						const label = this.formatTimestamp(time);
+						this.captures.push({ slot: "wipe", timestamp: time, blob: wipeBlob, label });
+					}
+					void this.captureFrame(vidA, "primary");
+					void this.captureFrame(vidB, "compare");
+				}
+			);
 		});
 	}
 
@@ -740,9 +776,14 @@ export class MediaLensView extends ItemView {
 			});
 
 			const info = item.createDiv({ cls: "media-lens-capture-info" });
-			const file = cap.slot === "primary" ? this.primaryFile : this.compareFile;
-			const playerLabel = this.compareFile ? (cap.slot === "primary" ? "A" : "B") : "";
-			const nameText = playerLabel ? `${playerLabel}: ${file?.name ?? cap.slot}` : (file?.name ?? cap.slot);
+			let nameText: string;
+			if (cap.slot === "wipe") {
+				nameText = "A|B: Wipe comparison";
+			} else {
+				const file = cap.slot === "primary" ? this.primaryFile : this.compareFile;
+				const playerLabel = this.compareFile ? (cap.slot === "primary" ? "A" : "B") : "";
+				nameText = playerLabel ? `${playerLabel}: ${file?.name ?? cap.slot}` : (file?.name ?? cap.slot);
+			}
 			info.createEl("span", { text: nameText, cls: "media-lens-capture-filename" });
 			info.createEl("span", { text: `@ ${cap.label}`, cls: "media-lens-capture-time" });
 
@@ -777,12 +818,24 @@ export class MediaLensView extends ItemView {
 			// Save captured frames to vault
 			const savedCaptures: NoteCapture[] = [];
 			for (const cap of this.captures) {
-				const file = cap.slot === "primary" ? this.primaryFile : this.compareFile;
-				const baseName = (file?.name ?? cap.slot).replace(/\.[^.]+$/, "");
+				let baseName: string;
+				let fileName: string;
+				let player: "A" | "B" | "A|B" | undefined;
+
+				if (cap.slot === "wipe") {
+					baseName = "wipe";
+					fileName = "Wipe comparison";
+					player = "A|B";
+				} else {
+					const file = cap.slot === "primary" ? this.primaryFile : this.compareFile;
+					baseName = (file?.name ?? cap.slot).replace(/\.[^.]+$/, "");
+					fileName = file?.name ?? cap.slot;
+					player = this.compareFile ? (cap.slot === "primary" ? "A" : "B") : undefined;
+				}
+
 				const capFileName = `${baseName}_${cap.label.replace(/[:.]/g, "-")}.png`;
 				const vaultPath = await saveCaptureToVault(this.app, cap.blob, capFileName, settings);
-				const player = this.compareFile ? (cap.slot === "primary" ? "A" as const : "B" as const) : undefined;
-				savedCaptures.push({ vaultPath, label: cap.label, fileName: file?.name ?? cap.slot, player });
+				savedCaptures.push({ vaultPath, label: cap.label, fileName, player });
 			}
 
 			// Copy external files into vault so embeds work (only if no captures)

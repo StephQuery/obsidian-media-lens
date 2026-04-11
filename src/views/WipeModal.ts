@@ -1,0 +1,424 @@
+import { Modal, setIcon } from "obsidian";
+import type MediaLensPlugin from "../main";
+import { getMimeType } from "../utils/media";
+import type { MediaCategory } from "../utils/media";
+
+interface WipeFile {
+	name: string;
+	buffer: ArrayBuffer;
+	category: MediaCategory;
+	frameRate: number;
+}
+
+type CaptureCallback = (vidA: HTMLVideoElement, vidB: HTMLVideoElement, wipeBlob?: Blob) => void;
+
+export class WipeModal extends Modal {
+	private fileA: WipeFile;
+	private fileB: WipeFile;
+	private onCapture: CaptureCallback;
+	private vidA: HTMLVideoElement | null = null;
+	private vidB: HTMLVideoElement | null = null;
+	private objectUrls: string[] = [];
+	private syncRaf: number | null = null;
+	private wipePosition = 50;
+
+	constructor(
+		plugin: MediaLensPlugin,
+		fileA: WipeFile,
+		fileB: WipeFile,
+		onCapture: CaptureCallback
+	) {
+		super(plugin.app);
+		this.fileA = fileA;
+		this.fileB = fileB;
+		this.onCapture = onCapture;
+	}
+
+	onOpen() {
+		const { contentEl, modalEl } = this;
+		modalEl.addClass("media-lens-wipe-modal");
+		contentEl.empty();
+
+		this.renderWipeView(contentEl);
+		this.renderTransport(contentEl);
+	}
+
+	onClose() {
+		this.stopSync();
+		for (const url of this.objectUrls) URL.revokeObjectURL(url);
+		this.objectUrls = [];
+		this.contentEl.empty();
+	}
+
+	private createUrl(buffer: ArrayBuffer, ext: string, category: MediaCategory): string {
+		const mime = getMimeType(ext, category);
+		const url = URL.createObjectURL(new Blob([buffer], { type: mime }));
+		this.objectUrls.push(url);
+		return url;
+	}
+
+	private renderWipeView(parent: HTMLElement) {
+		const viewport = parent.createDiv({ cls: "media-lens-wipe-viewport" });
+
+		const extA = this.fileA.name.split(".").pop()?.toLowerCase() ?? "";
+		const extB = this.fileB.name.split(".").pop()?.toLowerCase() ?? "";
+
+		// Video B (bottom layer)
+		this.vidB = viewport.createEl("video", {
+			cls: "media-lens-wipe-video media-lens-wipe-video-b",
+			attr: { src: this.createUrl(this.fileB.buffer, extB, this.fileB.category), preload: "auto" },
+		});
+		this.vidB.muted = true; // mute B by default to reduce decode overhead
+
+		// Video A (top layer, clipped)
+		this.vidA = viewport.createEl("video", {
+			cls: "media-lens-wipe-video media-lens-wipe-video-a",
+			attr: { src: this.createUrl(this.fileA.buffer, extA, this.fileA.category), preload: "auto" },
+		});
+
+		// Divider
+		const divider = viewport.createDiv({ cls: "media-lens-wipe-divider" });
+
+		// Labels
+		const labelA = viewport.createDiv({ cls: "media-lens-wipe-label media-lens-wipe-label-a" });
+		labelA.createSpan({ text: "A" });
+		const labelB = viewport.createDiv({ cls: "media-lens-wipe-label media-lens-wipe-label-b" });
+		labelB.createSpan({ text: "B" });
+
+		// Wipe drag — use transform instead of style.left for GPU compositing
+		let dragging = false;
+
+		const updateWipe = (pct: number) => {
+			const clamped = Math.max(0, Math.min(100, pct));
+			this.wipePosition = clamped;
+			if (this.vidA) {
+				this.vidA.setCssProps({ "--wipe-clip": `inset(0 ${100 - clamped}% 0 0)` });
+			}
+			divider.setCssProps({ "--wipe-pos": `${clamped}%` });
+			labelA.setCssProps({ "--wipe-label-a": `${100 - clamped + 2}%` });
+			labelB.setCssProps({ "--wipe-label-b": `${clamped + 2}%` });
+		};
+
+		updateWipe(50);
+
+		const onMove = (clientX: number) => {
+			if (!dragging) return;
+			const rect = viewport.getBoundingClientRect();
+			const pct = ((clientX - rect.left) / rect.width) * 100;
+			requestAnimationFrame(() => updateWipe(pct));
+		};
+
+		viewport.addEventListener("mousedown", (e) => {
+			dragging = true;
+			onMove(e.clientX);
+		});
+		document.addEventListener("mousemove", (e: MouseEvent) => onMove(e.clientX));
+		document.addEventListener("mouseup", () => { dragging = false; });
+
+		viewport.addEventListener("touchstart", (e) => {
+			dragging = true;
+			const touch = e.touches[0];
+			if (touch) onMove(touch.clientX);
+		});
+		document.addEventListener("touchmove", (e: TouchEvent) => {
+			const touch = e.touches[0];
+			if (touch) onMove(touch.clientX);
+		});
+		document.addEventListener("touchend", () => { dragging = false; });
+	}
+
+	private renderTransport(parent: HTMLElement) {
+		const vidA = this.vidA;
+		const vidB = this.vidB;
+		if (!vidA || !vidB) return;
+
+		const fps = this.fileA.frameRate;
+		const frameDuration = 1 / fps;
+
+		const transport = parent.createDiv({ cls: "media-lens-wipe-transport" });
+
+		// Seek row
+		const seekRow = transport.createDiv({ cls: "media-lens-wipe-seek" });
+		const timeLabel = seekRow.createSpan({ cls: "media-lens-wipe-time" });
+		const seekInput = seekRow.createEl("input", {
+			cls: "media-lens-wipe-range",
+			attr: { type: "range", min: "0", step: "0.001", value: "0" },
+		});
+		const durationLabel = seekRow.createSpan({ cls: "media-lens-wipe-time" });
+
+		const fmt = (s: number) => {
+			const m = Math.floor(s / 60);
+			const sec = Math.floor(s % 60);
+			const ms = Math.floor((s % 1) * 1000);
+			return `${m}:${String(sec).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
+		};
+
+		const updateDuration = () => {
+			const dur = vidA.duration || 0;
+			seekInput.max = String(dur);
+			durationLabel.textContent = fmt(dur);
+		};
+		vidA.addEventListener("loadedmetadata", updateDuration);
+		updateDuration();
+
+		// Scrub logic (rAF throttled, videos paused during scrub)
+		let scrubbing = false;
+		let wasPlaying = false;
+		let rafId: number | null = null;
+		let scrubTarget: number | null = null;
+
+		const updateTime = () => {
+			if (scrubbing) return;
+			seekInput.value = String(vidA.currentTime);
+			timeLabel.textContent = fmt(vidA.currentTime);
+		};
+		vidA.addEventListener("timeupdate", updateTime);
+		updateTime();
+
+		const applyScrub = () => {
+			rafId = null;
+			if (scrubTarget === null) return;
+			const t = scrubTarget;
+			scrubTarget = null;
+			vidA.currentTime = t;
+			vidB.currentTime = t;
+			timeLabel.textContent = fmt(t);
+		};
+
+		const startScrub = () => {
+			scrubbing = true;
+			wasPlaying = !vidA.paused;
+			vidA.pause();
+			vidB.pause();
+		};
+		seekInput.addEventListener("mousedown", startScrub);
+		seekInput.addEventListener("touchstart", startScrub);
+
+		seekInput.addEventListener("input", () => {
+			scrubTarget = parseFloat(seekInput.value);
+			timeLabel.textContent = fmt(scrubTarget);
+			if (rafId === null) {
+				rafId = requestAnimationFrame(applyScrub);
+			}
+		});
+
+		const endScrub = () => {
+			if (!scrubbing) return;
+			scrubbing = false;
+			if (rafId !== null) {
+				cancelAnimationFrame(rafId);
+				rafId = null;
+			}
+			scrubTarget = null;
+			const t = parseFloat(seekInput.value);
+			vidA.currentTime = t;
+			vidB.currentTime = t;
+			if (wasPlaying) {
+				this.syncPlay(vidA, vidB);
+			}
+		};
+		seekInput.addEventListener("mouseup", endScrub);
+		seekInput.addEventListener("touchend", endScrub);
+
+		// Mute row
+		const muteRow = transport.createDiv({ cls: "media-lens-wipe-mute-row" });
+		this.renderMuteBtn(muteRow, vidA, "Mute A");
+		this.renderMuteBtn(muteRow, vidB, "Mute B");
+
+		// Controls row
+		const controls = transport.createDiv({ cls: "media-lens-wipe-controls" });
+
+		const skipBack = this.makeBtn(controls, "rewind", "Back 10 seconds");
+		const frameBack = this.makeBtn(controls, "chevron-left", "Previous frame");
+		const playPause = this.makeBtn(controls, "play", "Play or pause");
+		const ppIcon = playPause.querySelector("span") as HTMLElement;
+		const frameFwd = this.makeBtn(controls, "chevron-right", "Next frame");
+		const skipFwd = this.makeBtn(controls, "fast-forward", "Forward 10 seconds");
+
+		controls.createSpan({ text: `${fps} fps`, cls: "media-lens-wipe-fps" });
+
+		const captureBtn = this.makeBtn(controls, "camera", "Capture frames");
+
+		const updatePlayIcon = () => {
+			if (ppIcon) {
+				ppIcon.empty();
+				setIcon(ppIcon, vidA.paused ? "play" : "pause");
+			}
+		};
+		vidA.addEventListener("play", updatePlayIcon);
+		vidA.addEventListener("pause", updatePlayIcon);
+
+		// Play/pause
+		playPause.addEventListener("click", () => {
+			if (vidA.paused) {
+				this.syncPlay(vidA, vidB);
+			} else {
+				this.syncPause(vidA, vidB);
+			}
+		});
+
+		// Frame step
+		const step = (delta: number) => {
+			this.syncPause(vidA, vidB);
+			const t = Math.max(0, vidA.currentTime + delta);
+			vidA.currentTime = t;
+			vidB.currentTime = t;
+		};
+
+		frameBack.addEventListener("click", () => step(-frameDuration));
+		frameFwd.addEventListener("click", () => step(frameDuration));
+		skipBack.addEventListener("click", () => step(-10));
+		skipFwd.addEventListener("click", () => step(10));
+
+		// Capture — composite wipe view + individual frames
+		captureBtn.addEventListener("click", () => {
+			this.syncPause(vidA, vidB);
+			vidB.currentTime = vidA.currentTime;
+			void this.captureWipeComposite(vidA, vidB);
+		});
+	}
+
+	private syncPlay(vidA: HTMLVideoElement, vidB: HTMLVideoElement) {
+		// Align before playing
+		vidB.currentTime = vidA.currentTime;
+		vidB.playbackRate = 1;
+
+		void Promise.all([vidA.play(), vidB.play()]);
+
+		// Start rate-based drift correction
+		this.startSync(vidA, vidB);
+	}
+
+	private syncPause(vidA: HTMLVideoElement, vidB: HTMLVideoElement) {
+		this.stopSync();
+		vidA.pause();
+		vidB.pause();
+		vidB.playbackRate = 1;
+		vidB.currentTime = vidA.currentTime;
+	}
+
+	private startSync(vidA: HTMLVideoElement, vidB: HTMLVideoElement) {
+		this.stopSync();
+
+		const frameDuration = 1 / this.fileA.frameRate;
+
+		const loop = () => {
+			if (vidA.paused || vidB.paused) {
+				this.stopSync();
+				return;
+			}
+
+			const drift = vidB.currentTime - vidA.currentTime;
+
+			if (Math.abs(drift) > 1) {
+				// Way too far off — hard seek
+				vidB.currentTime = vidA.currentTime;
+				vidB.playbackRate = 1;
+			} else if (Math.abs(drift) > frameDuration) {
+				// Nudge playback rate to catch up or slow down
+				vidB.playbackRate = drift > 0 ? 0.95 : 1.05;
+			} else {
+				// In sync — normal speed
+				vidB.playbackRate = 1;
+			}
+
+			this.syncRaf = requestAnimationFrame(loop);
+		};
+
+		this.syncRaf = requestAnimationFrame(loop);
+	}
+
+	private async captureWipeComposite(vidA: HTMLVideoElement, vidB: HTMLVideoElement) {
+		const w = vidA.videoWidth || 1920;
+		const h = vidA.videoHeight || 1080;
+		const splitX = Math.round(w * (this.wipePosition / 100));
+
+		const canvas = document.createElement("canvas");
+		canvas.width = w;
+		canvas.height = h;
+		const ctx = canvas.getContext("2d");
+		if (!ctx) return;
+
+		// Draw B full
+		ctx.drawImage(vidB, 0, 0, w, h);
+
+		// Draw A clipped to left of divider
+		ctx.save();
+		ctx.beginPath();
+		ctx.rect(0, 0, splitX, h);
+		ctx.clip();
+		ctx.drawImage(vidA, 0, 0, w, h);
+		ctx.restore();
+
+		// Draw divider line
+		ctx.strokeStyle = "white";
+		ctx.lineWidth = 2;
+		ctx.shadowColor = "rgba(0,0,0,0.5)";
+		ctx.shadowBlur = 4;
+		ctx.beginPath();
+		ctx.moveTo(splitX, 0);
+		ctx.lineTo(splitX, h);
+		ctx.stroke();
+
+		// Draw A/B labels
+		ctx.shadowBlur = 0;
+		ctx.font = "bold 14px sans-serif";
+		ctx.fillStyle = "rgba(0,0,0,0.5)";
+		ctx.fillRect(splitX - 30, 8, 22, 20);
+		ctx.fillRect(splitX + 8, 8, 22, 20);
+		ctx.fillStyle = "white";
+		ctx.fillText("A", splitX - 24, 23);
+		ctx.fillText("B", splitX + 14, 23);
+
+		const blob = await new Promise<Blob | null>((resolve) => {
+			canvas.toBlob(resolve, "image/png");
+		});
+		if (!blob) return;
+
+		this.onCapture(vidA, vidB, blob);
+	}
+
+	private stopSync() {
+		if (this.syncRaf !== null) {
+			cancelAnimationFrame(this.syncRaf);
+			this.syncRaf = null;
+		}
+	}
+
+	private makeBtn(parent: HTMLElement, icon: string, label: string): HTMLElement {
+		const btn = parent.createEl("button", {
+			cls: "media-lens-wipe-btn",
+			attr: { "aria-label": label },
+		});
+		const iconEl = btn.createSpan();
+		setIcon(iconEl, icon);
+		return btn;
+	}
+
+	private renderMuteBtn(parent: HTMLElement, video: HTMLVideoElement, label: string) {
+		const btn = parent.createEl("button", {
+			cls: "media-lens-wipe-btn media-lens-wipe-mute-btn",
+			attr: { "aria-label": label },
+		});
+		const iconEl = btn.createSpan();
+		btn.createSpan({ text: label });
+		const update = () => {
+			iconEl.empty();
+			setIcon(iconEl, video.muted ? "volume-x" : "volume-2");
+		};
+		update();
+		btn.addEventListener("click", () => {
+			video.muted = !video.muted;
+			update();
+		});
+	}
+}
+
+export function openWipeModal(
+	plugin: MediaLensPlugin,
+	fileA: { name: string; buffer: ArrayBuffer; category: MediaCategory; frameRate: number },
+	fileB: { name: string; buffer: ArrayBuffer; category: MediaCategory; frameRate: number },
+	onCapture: CaptureCallback
+) {
+	new WipeModal(plugin, fileA, fileB, onCapture).open();
+}

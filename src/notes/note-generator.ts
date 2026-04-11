@@ -11,7 +11,7 @@ export interface NoteCapture {
 	vaultPath: string;
 	label: string;
 	fileName: string;
-	player?: "A" | "B";
+	player?: "A" | "B" | "A|B";
 }
 
 function timestamp(): string {

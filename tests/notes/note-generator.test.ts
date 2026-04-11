@@ -204,6 +204,22 @@ describe("generateComparisonNote with captures", () => {
 		expect(note).toContain("**B: compressed.mp4** @ 1:23.456");
 	});
 
+	it("labels wipe captures as A|B", () => {
+		const wipeCaptures = [
+			{ vaultPath: "media-lens/assets/wipe_1-23-456.png", label: "1:23.456", fileName: "Wipe comparison", player: "A|B" as const },
+			{ vaultPath: "media-lens/assets/orig_1-23-456.png", label: "1:23.456", fileName: "original.mp4", player: "A" as const },
+			{ vaultPath: "media-lens/assets/comp_1-23-456.png", label: "1:23.456", fileName: "compressed.mp4", player: "B" as const },
+		];
+		const note = generateComparisonNote(
+			{ name: "original.mp4", source: "vault", category: "video", vaultPath: "original.mp4" },
+			{ name: "compressed.mp4", source: "vault", category: "video", vaultPath: "compressed.mp4" },
+			testSections, sectionsB, "media-lens/assets", wipeCaptures
+		);
+		expect(note).toContain("**A|B: Wipe comparison** @ 1:23.456");
+		expect(note).toContain("**A: original.mp4** @ 1:23.456");
+		expect(note).toContain("**B: compressed.mp4** @ 1:23.456");
+	});
+
 	it("omits player label when no player specified", () => {
 		const unlabeled = [
 			{ vaultPath: "media-lens/assets/clip_1-23-456.png", label: "1:23.456", fileName: "clip.mp4" },

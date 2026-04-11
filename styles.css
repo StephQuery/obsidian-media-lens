@@ -444,6 +444,158 @@
 	display: none;
 }
 
+/* ── Wipe Modal ── */
+
+.media-lens-wipe-modal {
+	width: 90vw;
+	max-width: 1200px;
+	height: 85vh;
+}
+
+.media-lens-wipe-modal .modal-content {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: 0;
+}
+
+.media-lens-wipe-viewport {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	background: var(--background-primary-alt);
+	overflow: hidden;
+	cursor: col-resize;
+}
+
+.media-lens-wipe-video {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+
+.media-lens-wipe-video-a {
+	z-index: 2;
+	clip-path: var(--wipe-clip, inset(0 50% 0 0));
+}
+
+.media-lens-wipe-video-b {
+	z-index: 1;
+}
+
+.media-lens-wipe-divider {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: var(--wipe-pos, 50%);
+	width: 2px;
+	background: white;
+	z-index: 3;
+	pointer-events: none;
+	box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+}
+
+.media-lens-wipe-label {
+	position: absolute;
+	top: var(--size-4-2);
+	z-index: 4;
+	padding: var(--size-2-1) var(--size-4-2);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+	color: white;
+	background: rgba(0, 0, 0, 0.5);
+	border-radius: var(--radius-s);
+	pointer-events: none;
+}
+
+.media-lens-wipe-label-a {
+	right: var(--wipe-label-a, 52%);
+}
+
+.media-lens-wipe-label-b {
+	left: var(--wipe-label-b, 52%);
+}
+
+/* Transport */
+
+.media-lens-wipe-transport {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-1);
+	padding: var(--size-4-2) var(--size-4-3);
+	background: var(--background-secondary);
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.media-lens-wipe-seek {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+}
+
+.media-lens-wipe-range {
+	flex: 1;
+	height: 4px;
+	cursor: pointer;
+	accent-color: var(--interactive-accent);
+}
+
+.media-lens-wipe-time {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	min-width: 55px;
+	text-align: center;
+	font-variant-numeric: tabular-nums;
+}
+
+.media-lens-wipe-mute-row {
+	display: flex;
+	gap: var(--size-4-2);
+	justify-content: center;
+}
+
+.media-lens-wipe-controls {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--size-4-1);
+	flex-wrap: wrap;
+}
+
+.media-lens-wipe-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--size-2-1);
+	padding: var(--size-2-2) var(--size-4-1);
+	border: none;
+	border-radius: var(--radius-s);
+	background: transparent;
+	color: var(--text-muted);
+	cursor: pointer;
+	font-size: var(--font-ui-smaller);
+	transition: color 100ms ease, background-color 100ms ease;
+}
+
+.media-lens-wipe-btn:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-hover);
+}
+
+.media-lens-wipe-mute-btn {
+	padding: var(--size-2-2) var(--size-4-2);
+	border: 1px solid var(--background-modifier-border);
+}
+
+.media-lens-wipe-fps {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+	padding: 0 var(--size-4-1);
+}
+
 /* ── Muted Text ── */
 
 .media-lens-muted {

@@ -10,10 +10,11 @@ Inspect and compare metadata for images, video, audio, and subtitle files direct
 - **Engineering-focused metadata** — codec, codec profile, bitrate, bitrate mode, resolution, frame rate, sample rate, channel layout, HDR format, color space, and more
 - **Media previews** — images render inline, videos and audio get playback controls, subtitles show a text preview
 - **Synced A/B playback** — compare two video encodes with synchronized playback, unified scrub bar, and automatic drift correction
+- **Wipe comparison** — full-screen modal with draggable vertical divider overlaying both videos for pixel-level visual QC
 - **Frame-by-frame stepping** — step forward/back one frame at a time using the file's actual frame rate
-- **Frame capture** — grab screenshots from video players (captures both A and B simultaneously in sync mode)
+- **Frame capture** — grab screenshots from video players, including a composite wipe capture (labeled A|B) showing both sources split at the divider
 - **Comparison diff** — side-by-side metadata table with differences highlighted
-- **Save as note** — persist inspections as markdown notes with embedded media, captured frames (labeled A/B), and metadata tables
+- **Save as note** — persist inspections as markdown notes with embedded media, captured frames (labeled A, B, or A|B), and metadata tables
 - **Privacy first** — all processing is local via WASM, no data leaves your device
 
 ## Installation
@@ -32,8 +33,9 @@ Inspect and compare metadata for images, video, audio, and subtitle files direct
 3. Metadata appears in collapsible sections below (General, Video, Audio, etc.)
 4. Load a second file of the same type into the compare zone
 5. Click **Sync playback** to enable the unified transport — scrub, play/pause, and step frame-by-frame in lockstep
-6. Pause and click the camera icon to capture frames from both players simultaneously
-7. Click **Save as note** to create a markdown note with video embeds, captured frames, and metadata
+6. Click **Wipe comparison** to open the full-screen wipe modal — drag the divider to compare encodes visually
+7. Click the camera icon to capture frames (wipe mode captures a composite A|B screenshot plus individual frames)
+8. Click **Save as note** to create a markdown note with video embeds, captured frames, and metadata
 
 ## Development
 
