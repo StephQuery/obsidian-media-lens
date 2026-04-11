@@ -5,6 +5,7 @@ import {
 	getCategoryLabel,
 	formatSize,
 	getAcceptString,
+	getMimeType,
 } from "../../src/utils/media";
 
 describe("getCategory", () => {
@@ -149,5 +150,38 @@ describe("getAcceptString", () => {
 		expect(accept).toContain(".ass");
 		expect(accept).toContain(".ssa");
 		expect(accept).not.toContain("image/*");
+	});
+});
+
+describe("getMimeType", () => {
+	it("returns correct MIME for common image formats", () => {
+		expect(getMimeType("jpg", "image")).toBe("image/jpeg");
+		expect(getMimeType("jpeg", "image")).toBe("image/jpeg");
+		expect(getMimeType("png", "image")).toBe("image/png");
+		expect(getMimeType("gif", "image")).toBe("image/gif");
+		expect(getMimeType("webp", "image")).toBe("image/webp");
+		expect(getMimeType("svg", "image")).toBe("image/svg+xml");
+	});
+
+	it("returns correct MIME for video formats", () => {
+		expect(getMimeType("mp4", "video")).toBe("video/mp4");
+		expect(getMimeType("mov", "video")).toBe("video/quicktime");
+		expect(getMimeType("mkv", "video")).toBe("video/x-matroska");
+		expect(getMimeType("webm", "video")).toBe("video/webm");
+	});
+
+	it("returns correct MIME for audio formats", () => {
+		expect(getMimeType("mp3", "audio")).toBe("audio/mpeg");
+		expect(getMimeType("flac", "audio")).toBe("audio/flac");
+		expect(getMimeType("wav", "audio")).toBe("audio/wav");
+		expect(getMimeType("ogg", "audio")).toBe("audio/ogg");
+		expect(getMimeType("m4a", "audio")).toBe("audio/mp4");
+	});
+
+	it("falls back to category default for unknown extensions", () => {
+		expect(getMimeType("xyz", "image")).toBe("image/png");
+		expect(getMimeType("xyz", "video")).toBe("video/mp4");
+		expect(getMimeType("xyz", "audio")).toBe("audio/mpeg");
+		expect(getMimeType("xyz", "subtitle")).toBe("text/plain");
 	});
 });

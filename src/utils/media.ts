@@ -35,6 +35,22 @@ export function formatSize(bytes: number): string {
 	return (bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1) + " " + units[i];
 }
 
+export function getMimeType(ext: string, category: MediaCategory): string {
+	const mimeMap: Record<string, string> = {
+		jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
+		gif: "image/gif", webp: "image/webp", bmp: "image/bmp",
+		tif: "image/tiff", tiff: "image/tiff", svg: "image/svg+xml",
+		mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime",
+		mkv: "video/x-matroska", avi: "video/x-msvideo", webm: "video/webm",
+		mp3: "audio/mpeg", flac: "audio/flac", wav: "audio/wav",
+		aac: "audio/aac", m4a: "audio/mp4", ogg: "audio/ogg", oga: "audio/ogg",
+	};
+	const fallback: Record<MediaCategory, string> = {
+		image: "image/png", video: "video/mp4", audio: "audio/mpeg", subtitle: "text/plain",
+	};
+	return mimeMap[ext] ?? fallback[category];
+}
+
 export function getAcceptString(category: MediaCategory | null): string {
 	if (category) {
 		const accepts: Record<MediaCategory, string> = {

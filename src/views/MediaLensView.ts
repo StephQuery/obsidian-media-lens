@@ -5,6 +5,7 @@ import {
 	getAcceptString,
 	getCategory,
 	getCategoryLabel,
+	getMimeType,
 } from "../utils/media";
 import type { MediaCategory } from "../utils/media";
 import { parseBuffer } from "../parsers/media-info-parser";
@@ -209,7 +210,7 @@ export class MediaLensView extends ItemView {
 	private renderPreview(parent: HTMLElement, file: LoadedFile) {
 		const wrapper = parent.createDiv({ cls: "media-lens-preview" });
 		const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-		const mime = this.getMimeType(ext, file.category);
+		const mime = getMimeType(ext, file.category);
 
 		switch (file.category) {
 			case "image": {
@@ -269,21 +270,6 @@ export class MediaLensView extends ItemView {
 		}
 	}
 
-	private getMimeType(ext: string, category: MediaCategory): string {
-		const mimeMap: Record<string, string> = {
-			jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
-			gif: "image/gif", webp: "image/webp", bmp: "image/bmp",
-			tif: "image/tiff", tiff: "image/tiff", svg: "image/svg+xml",
-			mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime",
-			mkv: "video/x-matroska", avi: "video/x-msvideo", webm: "video/webm",
-			mp3: "audio/mpeg", flac: "audio/flac", wav: "audio/wav",
-			aac: "audio/aac", m4a: "audio/mp4", ogg: "audio/ogg", oga: "audio/ogg",
-		};
-		const fallback: Record<MediaCategory, string> = {
-			image: "image/png", video: "video/mp4", audio: "audio/mpeg", subtitle: "text/plain",
-		};
-		return mimeMap[ext] ?? fallback[category];
-	}
 
 	private renderSections(parent: HTMLElement, sections: MetadataSection[]) {
 		for (const section of sections) {
