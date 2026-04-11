@@ -285,15 +285,17 @@ export class WipeModal extends Modal {
 
 		// Capture — pause, align, wait for seek, then composite + individual frames
 		captureBtn.addEventListener("click", () => {
+			captureBtn.disabled = true;
 			void (async () => {
 				this.syncPause(vidA, vidB);
-				// Wait for seeks to complete
 				await Promise.all([
 					new Promise<void>(r => { if (!vidA.seeking) r(); else vidA.addEventListener("seeked", () => r(), { once: true }); }),
 					new Promise<void>(r => { if (!vidB.seeking) r(); else vidB.addEventListener("seeked", () => r(), { once: true }); }),
 				]);
 				await this.captureWipeComposite(vidA, vidB);
-			})();
+			})().finally(() => {
+				captureBtn.disabled = false;
+			});
 		});
 	}
 
@@ -375,7 +377,7 @@ export class WipeModal extends Modal {
 	}
 
 
-	private makeBtn(parent: HTMLElement, icon: string, label: string): HTMLElement {
+	private makeBtn(parent: HTMLElement, icon: string, label: string): HTMLButtonElement {
 		const btn = parent.createEl("button", {
 			cls: "media-lens-wipe-btn",
 			attr: { "aria-label": label },

@@ -409,13 +409,21 @@ export class MediaLensView extends ItemView {
 		});
 		const iconEl = btn.createSpan();
 		setIcon(iconEl, "camera");
-		btn.createSpan({ text: "Capture" });
+		const label = btn.createSpan({ text: "Capture" });
 
 		btn.addEventListener("click", () => {
+			btn.disabled = true;
+			label.textContent = "Capturing...";
+			const done = () => {
+				btn.disabled = false;
+				label.textContent = "Capture";
+			};
 			if (this.syncEnabled && this.primaryVideo && this.compareVideo) {
-				void this.captureSyncedFrames(this.primaryVideo, this.compareVideo);
+				void this.captureSyncedFrames(this.primaryVideo, this.compareVideo).finally(done);
 			} else if (this.primaryVideo) {
-				void this.captureFrame(this.primaryVideo, "primary");
+				void this.captureFrame(this.primaryVideo, "primary").finally(done);
+			} else {
+				done();
 			}
 		});
 	}
@@ -430,9 +438,15 @@ export class MediaLensView extends ItemView {
 		});
 		const iconEl = btn.createSpan();
 		setIcon(iconEl, "split");
-		btn.createSpan({ text: "Wipe" });
+		const label = btn.createSpan({ text: "Wipe" });
 
 		btn.addEventListener("click", () => {
+			btn.disabled = true;
+			label.textContent = "Opening...";
+			setTimeout(() => {
+				btn.disabled = false;
+				label.textContent = "Wipe";
+			}, 500);
 			openWipeModal(
 				this.plugin,
 				{ name: fileA.name, buffer: fileA.buffer, category: fileA.category, frameRate: this.getFrameRate(fileA) },
@@ -456,9 +470,14 @@ export class MediaLensView extends ItemView {
 		});
 		const iconEl = btn.createSpan();
 		setIcon(iconEl, "save");
-		btn.createSpan({ text: "Save as note" });
+		const label = btn.createSpan({ text: "Save as note" });
 		btn.addEventListener("click", () => {
-			void this.handleSave();
+			btn.disabled = true;
+			label.textContent = "Saving...";
+			void this.handleSave().finally(() => {
+				btn.disabled = false;
+				label.textContent = "Save as note";
+			});
 		});
 	}
 
@@ -468,11 +487,15 @@ export class MediaLensView extends ItemView {
 		});
 		const iconEl = btn.createSpan();
 		setIcon(iconEl, this.syncEnabled ? "unlink" : "link");
-		btn.createSpan({ text: this.syncEnabled ? "Unsync playback" : "Sync playback" });
+		const label = btn.createSpan({ text: this.syncEnabled ? "Unsync playback" : "Sync playback" });
 
 		btn.addEventListener("click", () => {
-			this.syncEnabled = !this.syncEnabled;
-			this.render();
+			btn.disabled = true;
+			label.textContent = this.syncEnabled ? "Unsyncing..." : "Syncing...";
+			setTimeout(() => {
+				this.syncEnabled = !this.syncEnabled;
+				this.render();
+			}, 50);
 		});
 	}
 
