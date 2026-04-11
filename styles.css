@@ -22,6 +22,11 @@
 	transition: border-color 150ms ease, background-color 150ms ease;
 }
 
+.media-lens-drop-zone--disabled {
+	opacity: 0.4;
+	pointer-events: none;
+}
+
 .media-lens-drop-zone--over {
 	border-color: var(--interactive-accent);
 	background-color: var(--background-modifier-hover);

@@ -1,13 +1,16 @@
-import { ItemView, TFile, WorkspaceLeaf } from "obsidian";
+import { ItemView, Notice, TFile, WorkspaceLeaf } from "obsidian";
 import type MediaLensPlugin from "../main";
 
 export const VIEW_TYPE_MEDIA_LENS = "media-lens-view";
+
+type MediaCategory = "image" | "video" | "audio" | "subtitle";
 
 interface LoadedFile {
 	name: string;
 	size: number;
 	source: "vault" | "external";
 	buffer: ArrayBuffer;
+	category: MediaCategory;
 }
 
 export class MediaLensView extends ItemView {
@@ -62,9 +65,7 @@ export class MediaLensView extends ItemView {
 		container.addClass("media-lens-container");
 
 		this.renderDropZone(container, "primary");
-		if (this.primaryFile) {
-			this.renderDropZone(container, "compare");
-		}
+		this.renderDropZone(container, "compare");
 
 		if (this.primaryFile) {
 			this.renderMetadata(container);
@@ -87,50 +88,60 @@ export class MediaLensView extends ItemView {
 			return;
 		}
 
-		const zone = parent.createDiv({ cls: "media-lens-drop-zone" });
 		const isPrimary = slot === "primary";
+		const disabled = !isPrimary && !this.primaryFile;
+
+		const zone = parent.createDiv({
+			cls: `media-lens-drop-zone${disabled ? " media-lens-drop-zone--disabled" : ""}`,
+		});
 
 		const icon = zone.createDiv({ cls: "media-lens-drop-icon" });
 		icon.innerHTML = isPrimary ? this.uploadIcon() : this.diffIcon();
 
+		let label: string;
+		if (isPrimary) {
+			label = "Drop a file to inspect";
+		} else if (this.primaryFile) {
+			const typeLabel = this.getCategoryLabel(this.primaryFile.category);
+			label = `Drop another ${typeLabel} to compare`;
+		} else {
+			label = "Add a file above to compare";
+		}
+
 		zone.createEl("span", {
-			text: isPrimary ? "Drop a file to inspect" : "Drop a file to compare",
+			text: label,
 			cls: "media-lens-drop-label",
 		});
 
-		const actions = zone.createDiv({ cls: "media-lens-drop-actions" });
+		if (!disabled) {
+			const actions = zone.createDiv({ cls: "media-lens-drop-actions" });
 
-		const browseBtn = actions.createEl("button", {
-			text: "Browse vault",
-			cls: "media-lens-btn media-lens-btn-secondary",
-		});
-		browseBtn.addEventListener("click", () => this.browseVault(slot));
+			const browseBtn = actions.createEl("button", {
+				text: "Browse vault",
+				cls: "media-lens-btn media-lens-btn-secondary",
+			});
+			browseBtn.addEventListener("click", () => this.browseVault(slot));
 
-		const activeBtn = actions.createEl("button", {
-			text: "Active file",
-			cls: "media-lens-btn media-lens-btn-secondary",
-		});
-		activeBtn.addEventListener("click", () => this.loadActiveFile(slot));
+			// Drag-and-drop
+			zone.addEventListener("dragover", (e: DragEvent) => {
+				e.preventDefault();
+				e.stopPropagation();
+				zone.addClass("media-lens-drop-zone--over");
+			});
 
-		// Drag-and-drop
-		zone.addEventListener("dragover", (e: DragEvent) => {
-			e.preventDefault();
-			e.stopPropagation();
-			zone.addClass("media-lens-drop-zone--over");
-		});
+			zone.addEventListener("dragleave", (e: DragEvent) => {
+				e.preventDefault();
+				e.stopPropagation();
+				zone.removeClass("media-lens-drop-zone--over");
+			});
 
-		zone.addEventListener("dragleave", (e: DragEvent) => {
-			e.preventDefault();
-			e.stopPropagation();
-			zone.removeClass("media-lens-drop-zone--over");
-		});
-
-		zone.addEventListener("drop", async (e: DragEvent) => {
-			e.preventDefault();
-			e.stopPropagation();
-			zone.removeClass("media-lens-drop-zone--over");
-			await this.handleDrop(e, slot);
-		});
+			zone.addEventListener("drop", async (e: DragEvent) => {
+				e.preventDefault();
+				e.stopPropagation();
+				zone.removeClass("media-lens-drop-zone--over");
+				await this.handleDrop(e, slot);
+			});
+		}
 	}
 
 	private renderFileHeader(
@@ -173,12 +184,18 @@ export class MediaLensView extends ItemView {
 		// External files from OS
 		const droppedFile = e.dataTransfer?.files?.[0];
 		if (droppedFile) {
+			const category = this.getCategory(droppedFile.name);
+			if (!category) {
+				new Notice("Unsupported file type");
+				return;
+			}
 			const buffer = await droppedFile.arrayBuffer();
 			this.setFile(slot, {
 				name: droppedFile.name,
 				size: buffer.byteLength,
 				source: "external",
 				buffer,
+				category,
 			});
 			return;
 		}
@@ -192,7 +209,15 @@ export class MediaLensView extends ItemView {
 
 	private async browseVault(slot: "primary" | "compare") {
 		const files = this.app.vault.getFiles();
-		const mediaFiles = files.filter((f) => this.isSupportedExtension(f.extension));
+		let mediaFiles = files.filter((f) => this.isSupportedExtension(f.extension));
+
+		// When browsing for compare, only show files of the same category
+		if (slot === "compare" && this.primaryFile) {
+			const requiredCategory = this.primaryFile.category;
+			mediaFiles = mediaFiles.filter(
+				(f) => this.getCategory(f.name) === requiredCategory
+			);
+		}
 
 		if (mediaFiles.length === 0) {
 			return;
@@ -217,16 +242,15 @@ export class MediaLensView extends ItemView {
 		modal.open();
 	}
 
-	private async loadActiveFile(slot: "primary" | "compare") {
-		const file = this.app.workspace.getActiveFile();
-		if (file) {
-			await this.loadVaultFile(file.path, slot);
-		}
-	}
-
 	private async loadVaultFile(path: string, slot: "primary" | "compare") {
 		const abstractFile = this.app.vault.getAbstractFileByPath(path);
 		if (!(abstractFile instanceof TFile)) return;
+
+		const category = this.getCategory(abstractFile.name);
+		if (!category) {
+			new Notice("Unsupported file type");
+			return;
+		}
 
 		const buffer = await this.app.vault.readBinary(abstractFile);
 		this.setFile(slot, {
@@ -234,26 +258,57 @@ export class MediaLensView extends ItemView {
 			size: buffer.byteLength,
 			source: "vault",
 			buffer,
+			category,
 		});
 	}
 
 	private setFile(slot: "primary" | "compare", file: LoadedFile) {
+		if (slot === "compare" && this.primaryFile) {
+			if (file.category !== this.primaryFile.category) {
+				const expected = this.getCategoryLabel(this.primaryFile.category);
+				new Notice(`Cannot compare: expected ${expected}, got ${this.getCategoryLabel(file.category)}`);
+				return;
+			}
+		}
+
 		if (slot === "primary") {
 			this.primaryFile = file;
+			// Clear compare if the category no longer matches
+			if (this.compareFile && this.compareFile.category !== file.category) {
+				this.compareFile = null;
+			}
 		} else {
 			this.compareFile = file;
 		}
 		this.render();
 	}
 
+	private getCategory(filename: string): MediaCategory | null {
+		const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+		const imageExts = new Set(["jpg", "jpeg", "png", "gif", "webp", "tif", "tiff", "bmp", "svg"]);
+		const videoExts = new Set(["mp4", "m4v", "mkv", "avi", "mov", "webm"]);
+		const audioExts = new Set(["mp3", "flac", "wav", "aac", "m4a", "ogg", "oga"]);
+		const subtitleExts = new Set(["srt", "vtt", "ass", "ssa"]);
+
+		if (imageExts.has(ext)) return "image";
+		if (videoExts.has(ext)) return "video";
+		if (audioExts.has(ext)) return "audio";
+		if (subtitleExts.has(ext)) return "subtitle";
+		return null;
+	}
+
 	private isSupportedExtension(ext: string): boolean {
-		const supported = new Set([
-			"jpg", "jpeg", "png", "gif", "webp", "tif", "tiff", "bmp", "svg",
-			"mp4", "m4v", "mkv", "avi", "mov", "webm",
-			"mp3", "flac", "wav", "aac", "m4a", "ogg", "oga",
-			"srt", "vtt", "ass", "ssa",
-		]);
-		return supported.has(ext.toLowerCase());
+		return this.getCategory("file." + ext) !== null;
+	}
+
+	private getCategoryLabel(category: MediaCategory): string {
+		const labels: Record<MediaCategory, string> = {
+			image: "image",
+			video: "video",
+			audio: "audio file",
+			subtitle: "subtitle file",
+		};
+		return labels[category];
 	}
 
 	private formatSize(bytes: number): string {
