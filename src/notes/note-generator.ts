@@ -11,35 +11,39 @@ function timestamp(): string {
 	return new Date().toISOString().replace(/[:.]/g, "-").slice(0, 16);
 }
 
-function buildTable(sections: MetadataSection[]): string {
-	const lines: string[] = ["| Field | Value |", "|-------|-------|"];
+function buildSections(sections: MetadataSection[]): string {
+	const parts: string[] = [];
 	for (const section of sections) {
+		if (section.fields.length === 0) continue;
+		parts.push(`### ${section.name}`);
+		parts.push("");
+		parts.push("| Field | Value |");
+		parts.push("|-------|-------|");
 		for (const field of section.fields) {
-			lines.push(`| ${field.key} | ${field.value} |`);
+			parts.push(`| ${field.key} | ${field.value} |`);
 		}
+		parts.push("");
 	}
-	return lines.join("\n");
+	return parts.join("\n");
 }
 
-function buildComparisonTable(
+function buildComparisonSections(
 	sectionsA: MetadataSection[],
 	sectionsB: MetadataSection[],
 	nameA: string,
 	nameB: string
 ): string {
-	const lines: string[] = [
-		`| Field | ${nameA} | ${nameB} |`,
-		"|-------|-------|-------|",
-	];
-
-	const allSectionIds = new Map<string, true>();
-	for (const s of sectionsA) allSectionIds.set(s.id, true);
-	for (const s of sectionsB) allSectionIds.set(s.id, true);
+	const allSectionIds = new Map<string, string>();
+	for (const s of sectionsA) allSectionIds.set(s.id, s.name);
+	for (const s of sectionsB) {
+		if (!allSectionIds.has(s.id)) allSectionIds.set(s.id, s.name);
+	}
 
 	const mapA = new Map(sectionsA.map(s => [s.id, s]));
 	const mapB = new Map(sectionsB.map(s => [s.id, s]));
+	const parts: string[] = [];
 
-	for (const id of allSectionIds.keys()) {
+	for (const [id, sectionName] of allSectionIds) {
 		const sA = mapA.get(id);
 		const sB = mapB.get(id);
 
@@ -52,22 +56,30 @@ function buildComparisonTable(
 			if (!seen.has(f.key)) { allKeys.push(f.key); seen.add(f.key); }
 		}
 
+		if (allKeys.length === 0) continue;
+
 		const fieldsA = new Map((sA?.fields ?? []).map(f => [f.key, f.value]));
 		const fieldsB = new Map((sB?.fields ?? []).map(f => [f.key, f.value]));
+
+		parts.push(`### ${sectionName}`);
+		parts.push("");
+		parts.push(`| Field | ${nameA} | ${nameB} |`);
+		parts.push("|-------|-------|-------|");
 
 		for (const key of allKeys) {
 			const valA = fieldsA.get(key) ?? "—";
 			const valB = fieldsB.get(key) ?? "—";
 			const isDiff = valA !== valB;
 			if (isDiff) {
-				lines.push(`| ${key} | **${valA}** | **${valB}** |`);
+				parts.push(`| ${key} | **${valA}** | **${valB}** |`);
 			} else {
-				lines.push(`| ${key} | ${valA} | ${valB} |`);
+				parts.push(`| ${key} | ${valA} | ${valB} |`);
 			}
 		}
+		parts.push("");
 	}
 
-	return lines.join("\n");
+	return parts.join("\n");
 }
 
 function embedPath(file: NoteFile, assetsDir: string): string {
@@ -84,16 +96,11 @@ export function generateSingleNote(
 ): string {
 	const path = embedPath(file, assetsDir);
 	const lines = [
-		"---",
-		"media_lens: true",
-		`file: "${file.name}"`,
-		`type: ${file.category}`,
-		`inspected: ${new Date().toISOString()}`,
-		"---",
+		`**${file.name}**`,
 		"",
 		`![[${path}]]`,
 		"",
-		buildTable(sections),
+		buildSections(sections),
 		"",
 	];
 	return lines.join("\n");
@@ -109,18 +116,19 @@ export function generateComparisonNote(
 	const pathA = embedPath(fileA, assetsDir);
 	const pathB = embedPath(fileB, assetsDir);
 	const lines = [
-		"---",
-		"media_lens: true",
-		"comparison: true",
-		`file_a: "${fileA.name}"`,
-		`file_b: "${fileB.name}"`,
-		`inspected: ${new Date().toISOString()}`,
-		"---",
+		`**${fileA.name}**`,
 		"",
 		`![[${pathA}]]`,
+		"",
+		"---",
+		"",
+		`**${fileB.name}**`,
+		"",
 		`![[${pathB}]]`,
 		"",
-		buildComparisonTable(sectionsA, sectionsB, fileA.name, fileB.name),
+		"---",
+		"",
+		buildComparisonSections(sectionsA, sectionsB, fileA.name, fileB.name),
 		"",
 	];
 	return lines.join("\n");

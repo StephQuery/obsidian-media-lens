@@ -29,17 +29,26 @@ const testSections: MetadataSection[] = [
 ];
 
 describe("generateSingleNote", () => {
-	it("includes YAML frontmatter", () => {
+	it("does not include frontmatter", () => {
 		const note = generateSingleNote(
 			{ name: "clip.mp4", source: "vault", category: "video", vaultPath: "assets/clip.mp4" },
 			testSections,
 			"media-lens/assets"
 		);
-		expect(note).toContain("---");
-		expect(note).toContain("media_lens: true");
-		expect(note).toContain('file: "clip.mp4"');
-		expect(note).toContain("type: video");
-		expect(note).toContain("inspected:");
+		expect(note).not.toMatch(/^---/);
+	});
+
+	it("shows filename above embed", () => {
+		const note = generateSingleNote(
+			{ name: "clip.mp4", source: "vault", category: "video", vaultPath: "assets/clip.mp4" },
+			testSections,
+			"media-lens/assets"
+		);
+		expect(note).toContain("**clip.mp4**");
+		const lines = note.split("\n");
+		const nameIdx = lines.findIndex(l => l.includes("**clip.mp4**"));
+		const embedIdx = lines.findIndex(l => l.includes("![["));
+		expect(nameIdx).toBeLessThan(embedIdx);
 	});
 
 	it("embeds vault file with vault path", () => {
@@ -60,12 +69,14 @@ describe("generateSingleNote", () => {
 		expect(note).toContain("![[media-lens/assets/clip.mp4]]");
 	});
 
-	it("renders metadata table with all fields", () => {
+	it("renders metadata in sections with headers", () => {
 		const note = generateSingleNote(
 			{ name: "clip.mp4", source: "vault", category: "video", vaultPath: "clip.mp4" },
 			testSections,
 			"media-lens/assets"
 		);
+		expect(note).toContain("### General");
+		expect(note).toContain("### Video");
 		expect(note).toContain("| Field | Value |");
 		expect(note).toContain("| Format | MPEG-4 |");
 		expect(note).toContain("| Codec | AVC |");
@@ -97,33 +108,36 @@ describe("generateComparisonNote", () => {
 		},
 	];
 
-	it("includes comparison frontmatter", () => {
+	it("shows filenames above their embeds with divider between", () => {
 		const note = generateComparisonNote(
 			{ name: "original.mp4", source: "vault", category: "video", vaultPath: "original.mp4" },
 			{ name: "compressed.mp4", source: "vault", category: "video", vaultPath: "compressed.mp4" },
 			testSections, sectionsB, "media-lens/assets"
 		);
-		expect(note).toContain("comparison: true");
-		expect(note).toContain('file_a: "original.mp4"');
-		expect(note).toContain('file_b: "compressed.mp4"');
+		expect(note).toContain("**original.mp4**");
+		expect(note).toContain("**compressed.mp4**");
+		const lines = note.split("\n");
+		const nameA = lines.findIndex(l => l.includes("**original.mp4**"));
+		const embedA = lines.findIndex(l => l.includes("![[original.mp4]]"));
+		const nameB = lines.findIndex(l => l.includes("**compressed.mp4**"));
+		const embedB = lines.findIndex(l => l.includes("![[compressed.mp4]]"));
+		// Names come before their embeds
+		expect(nameA).toBeLessThan(embedA);
+		expect(nameB).toBeLessThan(embedB);
+		// Divider between the two files
+		const dividerIdx = lines.findIndex((l, i) => i > embedA && l === "---");
+		expect(dividerIdx).toBeGreaterThan(embedA);
+		expect(dividerIdx).toBeLessThan(nameB);
 	});
 
-	it("embeds both files", () => {
-		const note = generateComparisonNote(
-			{ name: "original.mp4", source: "vault", category: "video", vaultPath: "original.mp4" },
-			{ name: "compressed.mp4", source: "vault", category: "video", vaultPath: "compressed.mp4" },
-			testSections, sectionsB, "media-lens/assets"
-		);
-		expect(note).toContain("![[original.mp4]]");
-		expect(note).toContain("![[compressed.mp4]]");
-	});
-
-	it("renders three-column comparison table", () => {
+	it("renders comparison in sections with headers", () => {
 		const note = generateComparisonNote(
 			{ name: "a.mp4", source: "vault", category: "video", vaultPath: "a.mp4" },
 			{ name: "b.mp4", source: "vault", category: "video", vaultPath: "b.mp4" },
 			testSections, sectionsB, "media-lens/assets"
 		);
+		expect(note).toContain("### General");
+		expect(note).toContain("### Video");
 		expect(note).toContain("| Field | a.mp4 | b.mp4 |");
 	});
 
