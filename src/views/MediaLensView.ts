@@ -445,11 +445,8 @@ export class MediaLensView extends ItemView {
 		btn.addEventListener("click", () => {
 			btn.disabled = true;
 			label.textContent = "Opening...";
-			setTimeout(() => {
-				btn.disabled = false;
-				label.textContent = "Wipe";
-			}, 500);
-			openWipeModal(
+			requestAnimationFrame(() => {
+				openWipeModal(
 				this.plugin,
 				{ name: fileA.name, buffer: fileA.buffer, category: fileA.category, frameRate: this.getFrameRate(fileA) },
 				{ name: fileB.name, buffer: fileB.buffer, category: fileB.category, frameRate: this.getFrameRate(fileB) },
@@ -458,11 +455,15 @@ export class MediaLensView extends ItemView {
 						const time = vidA.currentTime;
 						const label = formatTimestamp(time);
 						this.captures.push({ slot: "wipe", timestamp: time, blob: wipeBlob, label });
+						this.updateCaptureStrip();
 					}
 					void this.captureFrame(vidA, "primary");
 					void this.captureFrame(vidB, "compare");
 				}
 			);
+			btn.disabled = false;
+			label.textContent = "Wipe";
+			});
 		});
 	}
 
