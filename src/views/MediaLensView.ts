@@ -1,9 +1,14 @@
 import { ItemView, Notice, setIcon, TFile, WorkspaceLeaf } from "obsidian";
 import type MediaLensPlugin from "../main";
+import {
+	formatSize,
+	getAcceptString,
+	getCategory,
+	getCategoryLabel,
+} from "../utils/media";
+import type { MediaCategory } from "../utils/media";
 
 export const VIEW_TYPE_MEDIA_LENS = "media-lens-view";
-
-type MediaCategory = "image" | "video" | "audio" | "subtitle";
 
 interface LoadedFile {
 	name: string;
@@ -102,7 +107,7 @@ export class MediaLensView extends ItemView {
 		if (isPrimary) {
 			label = "Drop a file to inspect";
 		} else if (this.primaryFile) {
-			const typeLabel = this.getCategoryLabel(this.primaryFile.category);
+			const typeLabel = getCategoryLabel(this.primaryFile.category);
 			label = `Drop another ${typeLabel} to compare`;
 		} else {
 			label = "Add a file above to compare";
@@ -158,7 +163,7 @@ export class MediaLensView extends ItemView {
 			cls: "media-lens-file-name",
 		});
 		info.createEl("span", {
-			text: this.formatSize(file.size),
+			text: formatSize(file.size),
 			cls: "media-lens-file-size",
 		});
 
@@ -184,19 +189,7 @@ export class MediaLensView extends ItemView {
 	private async handleDrop(e: DragEvent, slot: "primary" | "compare") {
 		const droppedFile = e.dataTransfer?.files?.[0];
 		if (droppedFile) {
-			const category = this.getCategory(droppedFile.name);
-			if (!category) {
-				new Notice("Unsupported file type");
-				return;
-			}
-			const buffer = await droppedFile.arrayBuffer();
-			this.setFile(slot, {
-				name: droppedFile.name,
-				size: buffer.byteLength,
-				source: "external",
-				buffer,
-				category,
-			});
+			await this.loadExternalFile(droppedFile, slot);
 			return;
 		}
 
@@ -207,7 +200,10 @@ export class MediaLensView extends ItemView {
 	}
 
 	private browseFiles(slot: "primary" | "compare") {
-		const accept = this.getAcceptString(slot);
+		const primaryCategory = this.primaryFile?.category ?? null;
+		const accept = slot === "compare" && primaryCategory
+			? getAcceptString(primaryCategory)
+			: getAcceptString(null);
 		const input = document.createElement("input");
 		input.type = "file";
 		input.accept = accept;
@@ -225,21 +221,8 @@ export class MediaLensView extends ItemView {
 		input.click();
 	}
 
-	private getAcceptString(slot: "primary" | "compare"): string {
-		if (slot === "compare" && this.primaryFile) {
-			const accepts: Record<MediaCategory, string> = {
-				image: "image/*,.tif,.tiff,.bmp,.svg",
-				video: "video/*,.mkv",
-				audio: "audio/*,.flac,.ogg,.oga",
-				subtitle: ".srt,.vtt,.ass,.ssa",
-			};
-			return accepts[this.primaryFile.category];
-		}
-		return "image/*,video/*,audio/*,.mkv,.flac,.ogg,.oga,.srt,.vtt,.ass,.ssa,.tif,.tiff,.bmp,.svg";
-	}
-
 	private async loadExternalFile(file: File, slot: "primary" | "compare") {
-		const category = this.getCategory(file.name);
+		const category = getCategory(file.name);
 		if (!category) {
 			new Notice("Unsupported file type");
 			return;
@@ -258,7 +241,7 @@ export class MediaLensView extends ItemView {
 		const abstractFile = this.app.vault.getAbstractFileByPath(path);
 		if (!(abstractFile instanceof TFile)) return;
 
-		const category = this.getCategory(abstractFile.name);
+		const category = getCategory(abstractFile.name);
 		if (!category) {
 			new Notice("Unsupported file type");
 			return;
@@ -277,8 +260,8 @@ export class MediaLensView extends ItemView {
 	private setFile(slot: "primary" | "compare", file: LoadedFile) {
 		if (slot === "compare" && this.primaryFile) {
 			if (file.category !== this.primaryFile.category) {
-				const expected = this.getCategoryLabel(this.primaryFile.category);
-				new Notice(`Cannot compare: expected ${expected}, got ${this.getCategoryLabel(file.category)}`);
+				const expected = getCategoryLabel(this.primaryFile.category);
+				new Notice(`Cannot compare: expected ${expected}, got ${getCategoryLabel(file.category)}`);
 				return;
 			}
 		}
@@ -292,40 +275,5 @@ export class MediaLensView extends ItemView {
 			this.compareFile = file;
 		}
 		this.render();
-	}
-
-	private getCategory(filename: string): MediaCategory | null {
-		const ext = filename.split(".").pop()?.toLowerCase() ?? "";
-		const imageExts = new Set(["jpg", "jpeg", "png", "gif", "webp", "tif", "tiff", "bmp", "svg"]);
-		const videoExts = new Set(["mp4", "m4v", "mkv", "avi", "mov", "webm"]);
-		const audioExts = new Set(["mp3", "flac", "wav", "aac", "m4a", "ogg", "oga"]);
-		const subtitleExts = new Set(["srt", "vtt", "ass", "ssa"]);
-
-		if (imageExts.has(ext)) return "image";
-		if (videoExts.has(ext)) return "video";
-		if (audioExts.has(ext)) return "audio";
-		if (subtitleExts.has(ext)) return "subtitle";
-		return null;
-	}
-
-	private isSupportedExtension(ext: string): boolean {
-		return this.getCategory("file." + ext) !== null;
-	}
-
-	private getCategoryLabel(category: MediaCategory): string {
-		const labels: Record<MediaCategory, string> = {
-			image: "image",
-			video: "video",
-			audio: "audio file",
-			subtitle: "subtitle file",
-		};
-		return labels[category];
-	}
-
-	private formatSize(bytes: number): string {
-		if (bytes === 0) return "0 B";
-		const units = ["B", "KB", "MB", "GB"];
-		const i = Math.floor(Math.log(bytes) / Math.log(1024));
-		return (bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1) + " " + units[i];
 	}
 }
