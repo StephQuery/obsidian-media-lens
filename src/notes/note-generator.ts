@@ -7,6 +7,13 @@ interface NoteFile {
 	vaultPath?: string;
 }
 
+export interface NoteCapture {
+	vaultPath: string;
+	label: string;
+	fileName: string;
+	player?: "A" | "B";
+}
+
 function timestamp(): string {
 	return new Date().toISOString().replace(/[:.]/g, "-").slice(0, 16);
 }
@@ -89,10 +96,24 @@ function embedPath(file: NoteFile, assetsDir: string): string {
 	return `${assetsDir}/${file.name}`;
 }
 
+function buildCaptures(captures: NoteCapture[]): string {
+	if (captures.length === 0) return "";
+	const lines = ["### Captured Frames", ""];
+	for (const cap of captures) {
+		const prefix = cap.player ? `${cap.player}: ` : "";
+		lines.push(`**${prefix}${cap.fileName}** @ ${cap.label}`);
+		lines.push("");
+		lines.push(`![[${cap.vaultPath}]]`);
+		lines.push("");
+	}
+	return lines.join("\n");
+}
+
 export function generateSingleNote(
 	file: NoteFile,
 	sections: MetadataSection[],
-	assetsDir: string
+	assetsDir: string,
+	captures: NoteCapture[] = []
 ): string {
 	const path = embedPath(file, assetsDir);
 	const lines = [
@@ -100,9 +121,11 @@ export function generateSingleNote(
 		"",
 		`![[${path}]]`,
 		"",
-		buildSections(sections),
-		"",
 	];
+	if (captures.length > 0) {
+		lines.push(buildCaptures(captures), "");
+	}
+	lines.push(buildSections(sections), "");
 	return lines.join("\n");
 }
 
@@ -111,26 +134,24 @@ export function generateComparisonNote(
 	fileB: NoteFile,
 	sectionsA: MetadataSection[],
 	sectionsB: MetadataSection[],
-	assetsDir: string
+	assetsDir: string,
+	captures: NoteCapture[] = []
 ): string {
 	const pathA = embedPath(fileA, assetsDir);
 	const pathB = embedPath(fileB, assetsDir);
-	const lines = [
-		`**${fileA.name}**`,
-		"",
-		`![[${pathA}]]`,
-		"",
-		"---",
-		"",
-		`**${fileB.name}**`,
-		"",
-		`![[${pathB}]]`,
-		"",
-		"---",
-		"",
-		buildComparisonSections(sectionsA, sectionsB, fileA.name, fileB.name),
-		"",
+	const lines: string[] = [
+		`**${fileA.name}**`, "",
+		`![[${pathA}]]`, "",
+		"---", "",
+		`**${fileB.name}**`, "",
+		`![[${pathB}]]`, "",
 	];
+	if (captures.length > 0) {
+		lines.push("---", "", buildCaptures(captures), "");
+	}
+	lines.push("---", "");
+
+	lines.push(buildComparisonSections(sectionsA, sectionsB, fileA.name, fileB.name), "");
 	return lines.join("\n");
 }
 

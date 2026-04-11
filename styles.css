@@ -7,6 +7,65 @@
 	gap: var(--size-4-3);
 }
 
+/* ── Synced Layout ── */
+
+.media-lens-synced-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	padding: var(--size-4-2) var(--size-4-3);
+	background: var(--background-secondary);
+	border-radius: var(--radius-m);
+}
+
+.media-lens-synced-labels {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-1);
+	min-width: 0;
+}
+
+.media-lens-synced-label {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-1);
+	min-width: 0;
+}
+
+.media-lens-synced-badge {
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+	color: var(--text-muted);
+	background: var(--background-modifier-hover);
+	border-radius: var(--radius-s);
+	padding: 0 var(--size-2-2);
+	flex-shrink: 0;
+}
+
+.media-lens-synced-name {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-normal);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.media-lens-synced-size {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+	flex-shrink: 0;
+}
+
+.media-lens-synced-stack {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-1);
+}
+
+.media-lens-synced-stack .media-lens-preview {
+	border-radius: var(--radius-s);
+}
+
 /* ── Drop Zone ── */
 
 .media-lens-drop-zone {
@@ -124,6 +183,22 @@
 	background: var(--background-modifier-hover);
 }
 
+/* ── Divider ── */
+
+.media-lens-divider {
+	border: none;
+	border-top: 1px solid var(--background-modifier-border);
+	margin: 0;
+}
+
+/* ── Actions Bar ── */
+
+.media-lens-actions {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+}
+
 /* ── Save Button ── */
 
 .media-lens-save-bar {
@@ -131,19 +206,164 @@
 }
 
 .media-lens-btn-save {
-	width: 100%;
-	padding: var(--size-4-2);
-	font-size: var(--font-ui-small);
-	border: none;
-	border-radius: var(--radius-m);
+	padding: var(--size-2-2) var(--size-4-3);
+	font-size: var(--font-ui-smaller);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
 	cursor: pointer;
-	color: var(--text-on-accent);
-	background: var(--interactive-accent);
-	transition: background-color 100ms ease;
+	color: var(--text-muted);
+	background: transparent;
+	transition: color 100ms ease, border-color 100ms ease;
 }
 
 .media-lens-btn-save:hover {
-	background: var(--interactive-accent-hover);
+	color: var(--text-normal);
+	border-color: var(--text-muted);
+}
+
+/* ── Mute Button ── */
+
+.media-lens-btn-mute {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	align-self: flex-end;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	margin-top: var(--size-2-1);
+	border: none;
+	border-radius: var(--radius-s);
+	background: var(--background-modifier-hover);
+	color: var(--text-muted);
+	cursor: pointer;
+	transition: color 100ms ease, background-color 100ms ease;
+}
+
+.media-lens-btn-mute:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-border);
+}
+
+/* ── Unified Transport ── */
+
+.media-lens-transport {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-1);
+	padding: var(--size-4-2) 0;
+}
+
+.media-lens-transport-seek {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-1);
+}
+
+.media-lens-transport-range {
+	flex: 1;
+	height: 4px;
+	cursor: pointer;
+	accent-color: var(--interactive-accent);
+}
+
+.media-lens-transport-time {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	min-width: 45px;
+	text-align: center;
+}
+
+.media-lens-transport-controls {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--size-4-1);
+	flex-wrap: wrap;
+}
+
+/* ── Capture Strip ── */
+
+.media-lens-capture-strip {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-1);
+}
+
+.media-lens-capture-label {
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+	color: var(--text-muted);
+}
+
+.media-lens-capture-list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-1);
+}
+
+.media-lens-capture-item {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	padding: var(--size-2-1);
+	background: var(--background-secondary);
+	border-radius: var(--radius-s);
+}
+
+.media-lens-capture-thumb {
+	width: 48px;
+	height: 32px;
+	object-fit: cover;
+	border-radius: var(--radius-s);
+	flex-shrink: 0;
+}
+
+.media-lens-capture-info {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	min-width: 0;
+	flex: 1;
+}
+
+.media-lens-capture-filename {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-normal);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.media-lens-capture-time {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+}
+
+/* ── Frame Stepping ── */
+
+.media-lens-frame-step {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--size-4-2);
+	padding: var(--size-2-2) 0;
+}
+
+.media-lens-frame-step--hidden {
+	display: none;
+}
+
+.media-lens-frame-btn {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-1);
+	font-size: var(--font-ui-smaller);
+}
+
+.media-lens-frame-fps {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
 }
 
 /* ── Sync Playback ── */
@@ -169,17 +389,17 @@
 
 .media-lens-btn-sync:hover {
 	color: var(--text-normal);
-	border-color: var(--interactive-accent);
+	border-color: var(--text-muted);
 }
 
 .media-lens-btn-sync--active {
-	color: var(--text-on-accent);
-	background: var(--interactive-accent);
-	border-color: var(--interactive-accent);
+	color: var(--text-normal);
+	background: var(--background-modifier-hover);
+	border-color: var(--text-muted);
 }
 
 .media-lens-btn-sync--active:hover {
-	background: var(--interactive-accent-hover);
+	background: var(--background-modifier-border);
 }
 
 /* ── Media Preview ── */
