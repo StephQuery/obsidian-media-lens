@@ -617,10 +617,10 @@ export class MediaLensView extends ItemView {
 
 		controls.createDiv({ cls: "media-lens-transport-sep" });
 
-		// Skip back 10s
+		// Skip back 5s
 		const skipBack = controls.createEl("button", {
 			cls: "media-lens-btn media-lens-btn-secondary media-lens-frame-btn",
-			attr: { "aria-label": "Back 10 seconds" },
+			attr: { "aria-label": "Back 5 seconds" },
 		});
 		const sbIcon = skipBack.createSpan();
 		setIcon(sbIcon, "rewind");
@@ -657,36 +657,15 @@ export class MediaLensView extends ItemView {
 		const ffIcon = frameFwd.createSpan();
 		setIcon(ffIcon, "chevron-right");
 
-		// Skip forward 10s
+		// Skip forward 5s
 		const skipFwd = controls.createEl("button", {
 			cls: "media-lens-btn media-lens-btn-secondary media-lens-frame-btn",
-			attr: { "aria-label": "Forward 10 seconds" },
+			attr: { "aria-label": "Forward 5 seconds" },
 		});
 		const sfIcon = skipFwd.createSpan();
 		setIcon(sfIcon, "fast-forward");
 
 		controls.createDiv({ cls: "media-lens-transport-sep" });
-
-		controls.createDiv({ cls: "media-lens-transport-sep" });
-
-		// Step size selector
-		let stepFrames = 1;
-		const stepGroup = controls.createDiv({ cls: "media-lens-step-group" });
-		const stepSizes = [1, 5, 10];
-		const stepButtons: HTMLElement[] = [];
-		for (const size of stepSizes) {
-			const sb = stepGroup.createEl("button", {
-				text: String(size),
-				cls: `media-lens-step-btn${size === 1 ? " media-lens-step-btn--active" : ""}`,
-			});
-			sb.addEventListener("click", () => {
-				stepFrames = size;
-				for (const b of stepButtons) b.removeClass("media-lens-step-btn--active");
-				sb.addClass("media-lens-step-btn--active");
-			});
-			stepButtons.push(sb);
-		}
-		stepGroup.createSpan({ text: "f", cls: "media-lens-step-unit" });
 
 		controls.createSpan({ text: `${fps} fps`, cls: "media-lens-frame-fps" });
 
@@ -725,10 +704,10 @@ export class MediaLensView extends ItemView {
 			vidA.currentTime = t;
 			vidB.currentTime = t;
 		};
-		skipBack.addEventListener("click", () => step(-10));
-		frameBack.addEventListener("click", () => step(-frameDuration * stepFrames));
-		frameFwd.addEventListener("click", () => step(frameDuration * stepFrames));
-		skipFwd.addEventListener("click", () => step(10));
+		skipBack.addEventListener("click", () => step(-5));
+		frameBack.addEventListener("click", () => step(-frameDuration));
+		frameFwd.addEventListener("click", () => step(frameDuration));
+		skipFwd.addEventListener("click", () => step(5));
 
 	}
 

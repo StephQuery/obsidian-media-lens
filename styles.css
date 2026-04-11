@@ -386,42 +386,6 @@
 	color: var(--text-faint);
 }
 
-.media-lens-step-group {
-	display: flex;
-	align-items: center;
-	gap: var(--size-2-1);
-	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-s);
-	padding: var(--size-2-1);
-}
-
-.media-lens-step-btn {
-	padding: var(--size-2-1) var(--size-2-2);
-	font-size: var(--font-ui-smaller);
-	border: none;
-	border-radius: var(--radius-s);
-	background: transparent;
-	color: var(--text-faint);
-	cursor: pointer;
-	min-width: 20px;
-	text-align: center;
-}
-
-.media-lens-step-btn:hover {
-	color: var(--text-normal);
-}
-
-.media-lens-step-btn--active {
-	color: var(--text-normal);
-	background: var(--background-modifier-hover);
-	font-weight: var(--font-semibold);
-}
-
-.media-lens-step-unit {
-	font-size: var(--font-ui-smaller);
-	color: var(--text-faint);
-}
-
 .media-lens-transport-sep {
 	width: 1px;
 	height: 16px;
