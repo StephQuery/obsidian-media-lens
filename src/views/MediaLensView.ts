@@ -1183,7 +1183,9 @@ export class MediaLensView extends ItemView {
 
 		input.addEventListener("change", () => {
 			const file = input.files?.[0];
-			if (file) {
+			if (file && file.size > MAX_FILE_SIZE) {
+				new Notice(`File too large (${formatSize(file.size)}). Maximum is 100 GB.`);
+			} else if (file) {
 				void this.loadFile(file.name, file.name, file.arrayBuffer(), "external", slot);
 			}
 			cleanup();

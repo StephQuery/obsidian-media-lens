@@ -112,11 +112,19 @@ export class WipeModal extends Modal {
 
 		updateWipe(50);
 
+		let wipePending = false;
+		let wipeLatest = 50;
 		const onMove = (clientX: number) => {
 			if (!dragging) return;
 			const rect = viewport.getBoundingClientRect();
-			const pct = ((clientX - rect.left) / rect.width) * 100;
-			requestAnimationFrame(() => updateWipe(pct));
+			wipeLatest = ((clientX - rect.left) / rect.width) * 100;
+			if (!wipePending) {
+				wipePending = true;
+				requestAnimationFrame(() => {
+					wipePending = false;
+					updateWipe(wipeLatest);
+				});
+			}
 		};
 
 		viewport.addEventListener("mousedown", (e) => {
