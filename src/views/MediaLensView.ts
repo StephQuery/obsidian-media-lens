@@ -87,6 +87,8 @@ export class MediaLensView extends ItemView {
 
 	clearPrimary() {
 		this.primaryFile = null;
+		this.compareFile = null;
+		this.syncEnabled = false;
 		this.captures = [];
 		this.render();
 	}
@@ -1148,6 +1150,10 @@ export class MediaLensView extends ItemView {
 	private async handleDrop(e: DragEvent, slot: "primary" | "compare") {
 		const droppedFile = e.dataTransfer?.files?.[0];
 		if (droppedFile) {
+			if (droppedFile.size > MAX_FILE_SIZE) {
+				new Notice(`File too large (${formatSize(droppedFile.size)}). Maximum is 100 GB.`);
+				return;
+			}
 			await this.loadFile(droppedFile.name, droppedFile.name, await droppedFile.arrayBuffer(), "external", slot);
 			return;
 		}
@@ -1156,6 +1162,10 @@ export class MediaLensView extends ItemView {
 		if (path) {
 			const abstractFile = this.app.vault.getAbstractFileByPath(path);
 			if (abstractFile instanceof TFile) {
+				if (abstractFile.stat.size > MAX_FILE_SIZE) {
+					new Notice(`File too large (${formatSize(abstractFile.stat.size)}). Maximum is 100 GB.`);
+					return;
+				}
 				const buffer = await this.app.vault.readBinary(abstractFile);
 				await this.loadFile(abstractFile.name, abstractFile.path, buffer, "vault", slot);
 			}
@@ -1203,10 +1213,6 @@ export class MediaLensView extends ItemView {
 
 		try {
 			const buffer = await bufferOrPromise;
-			if (buffer.byteLength > MAX_FILE_SIZE) {
-				new Notice(`File too large (${formatSize(buffer.byteLength)}). Maximum is 100 GB.`);
-				return;
-			}
 			const wasmUrl = this.plugin.getWasmUrl();
 			const result = await parseBuffer(buffer, wasmUrl);
 			const sections = normalizeTracks(result);

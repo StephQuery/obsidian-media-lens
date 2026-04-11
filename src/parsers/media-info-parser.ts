@@ -46,7 +46,7 @@ export async function parseBuffer(
 	return await mi.analyzeData(
 		buffer.byteLength,
 		(chunkSize: number, offset: number) =>
-			new Uint8Array(buffer.slice(offset, offset + chunkSize))
+			new Uint8Array(buffer, offset, chunkSize)
 	);
 }
 

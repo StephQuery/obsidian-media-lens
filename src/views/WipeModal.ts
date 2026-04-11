@@ -55,8 +55,8 @@ export class WipeModal extends Modal {
 		this.contentEl.empty();
 	}
 
-	private addDocListener(type: string, handler: EventListener) {
-		document.addEventListener(type, handler);
+	private addDocListener(type: string, handler: EventListener, options?: AddEventListenerOptions) {
+		document.addEventListener(type, handler, options);
 		this.documentListeners.push({ type, handler });
 	}
 
@@ -135,7 +135,7 @@ export class WipeModal extends Modal {
 			if (dragging) e.preventDefault();
 			const touch = (e as TouchEvent).touches[0];
 			if (touch) onMove(touch.clientX);
-		});
+		}, { passive: false });
 		this.addDocListener("touchend", () => { dragging = false; });
 	}
 

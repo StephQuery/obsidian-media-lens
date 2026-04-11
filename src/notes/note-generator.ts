@@ -14,6 +14,10 @@ export interface NoteCapture {
 	player?: "A" | "B" | "A|B";
 }
 
+function escapeCell(text: string): string {
+	return text.replace(/\|/g, "\\|").replace(/\n/g, " ");
+}
+
 function timestamp(): string {
 	return new Date().toISOString().replace(/[:.]/g, "-").slice(0, 16);
 }
@@ -27,7 +31,7 @@ function buildSections(sections: MetadataSection[]): string {
 		parts.push("| Field | Value |");
 		parts.push("|-------|-------|");
 		for (const field of section.fields) {
-			parts.push(`| ${field.key} | ${field.value} |`);
+			parts.push(`| ${escapeCell(field.key)} | ${escapeCell(field.value)} |`);
 		}
 		parts.push("");
 	}
@@ -74,13 +78,14 @@ function buildComparisonSections(
 		parts.push("|-------|-------|-------|");
 
 		for (const key of allKeys) {
-			const valA = fieldsA.get(key) ?? "—";
-			const valB = fieldsB.get(key) ?? "—";
+			const valA = escapeCell(fieldsA.get(key) ?? "—");
+			const valB = escapeCell(fieldsB.get(key) ?? "—");
+			const k = escapeCell(key);
 			const isDiff = valA !== valB;
 			if (isDiff) {
-				parts.push(`| ${key} | **${valA}** | **${valB}** |`);
+				parts.push(`| ${k} | **${valA}** | **${valB}** |`);
 			} else {
-				parts.push(`| ${key} | ${valA} | ${valB} |`);
+				parts.push(`| ${k} | ${valA} | ${valB} |`);
 			}
 		}
 		parts.push("");
