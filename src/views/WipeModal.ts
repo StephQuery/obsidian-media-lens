@@ -1,7 +1,7 @@
 import { Modal, setIcon } from "obsidian";
 import type MediaLensPlugin from "../main";
 import { getMimeType } from "../utils/media";
-import { createDriftController, type DriftController } from "../utils/video-sync";
+import { createDriftController, formatTimestamp, isVideoReady, type DriftController } from "../utils/video-sync";
 import type { MediaCategory } from "../utils/media";
 
 interface WipeFile {
@@ -159,22 +159,15 @@ export class WipeModal extends Modal {
 		});
 		const durationLabel = seekRow.createSpan({ cls: "media-lens-wipe-time" });
 
-		const fmt = (s: number) => {
-			const m = Math.floor(s / 60);
-			const sec = Math.floor(s % 60);
-			const ms = Math.floor((s % 1) * 1000);
-			return `${m}:${String(sec).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
-		};
-
 		const updateDuration = () => {
 			const durA = vidA.duration || 0;
 			const durB = vidB.duration || 0;
 			const maxDur = Math.max(durA, durB);
 			seekInput.max = String(maxDur);
 			if (durA > 0 && durB > 0 && Math.abs(durA - durB) > 0.5) {
-				durationLabel.textContent = `A ${fmt(durA)} / B ${fmt(durB)}`;
+				durationLabel.textContent = `A ${formatTimestamp(durA)} / B ${formatTimestamp(durB)}`;
 			} else {
-				durationLabel.textContent = fmt(maxDur);
+				durationLabel.textContent = formatTimestamp(maxDur);
 			}
 		};
 		vidA.addEventListener("loadedmetadata", updateDuration);
@@ -190,7 +183,7 @@ export class WipeModal extends Modal {
 		const updateTime = () => {
 			if (scrubbing) return;
 			seekInput.value = String(vidA.currentTime);
-			timeLabel.textContent = fmt(vidA.currentTime);
+			timeLabel.textContent = formatTimestamp(vidA.currentTime);
 		};
 		vidA.addEventListener("timeupdate", updateTime);
 		updateTime();
@@ -202,7 +195,7 @@ export class WipeModal extends Modal {
 			scrubTarget = null;
 			vidA.currentTime = t;
 			vidB.currentTime = t;
-			timeLabel.textContent = fmt(t);
+			timeLabel.textContent = formatTimestamp(t);
 		};
 
 		const startScrub = () => {
@@ -216,7 +209,7 @@ export class WipeModal extends Modal {
 
 		seekInput.addEventListener("input", () => {
 			scrubTarget = parseFloat(seekInput.value);
-			timeLabel.textContent = fmt(scrubTarget);
+			timeLabel.textContent = formatTimestamp(scrubTarget);
 			if (rafId === null) {
 				rafId = requestAnimationFrame(applyScrub);
 			}
@@ -318,7 +311,7 @@ export class WipeModal extends Modal {
 	}
 
 	private async captureWipeComposite(vidA: HTMLVideoElement, vidB: HTMLVideoElement) {
-		if (vidA.readyState < 2 || vidB.readyState < 2 || vidA.videoWidth === 0 || vidB.videoWidth === 0) {
+		if (!isVideoReady(vidA) || !isVideoReady(vidB)) {
 			return;
 		}
 		const w = vidA.videoWidth;

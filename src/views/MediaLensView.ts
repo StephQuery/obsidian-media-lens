@@ -16,7 +16,7 @@ import { generateSingleNote, generateComparisonNote, generateNoteName } from "..
 import type { NoteCapture } from "../notes/note-generator";
 import { saveNote, copyExternalFileToVault, saveCaptureToVault } from "../notes/note-writer";
 import { openWipeModal } from "./WipeModal";
-import { createDriftController } from "../utils/video-sync";
+import { createDriftController, formatTimestamp, isVideoReady } from "../utils/video-sync";
 
 export const VIEW_TYPE_MEDIA_LENS = "media-lens-view";
 
@@ -441,7 +441,7 @@ export class MediaLensView extends ItemView {
 				(vidA, vidB, wipeBlob) => {
 					if (wipeBlob) {
 						const time = vidA.currentTime;
-						const label = this.formatTimestamp(time);
+						const label = formatTimestamp(time);
 						this.captures.push({ slot: "wipe", timestamp: time, blob: wipeBlob, label });
 					}
 					void this.captureFrame(vidA, "primary");
@@ -526,9 +526,9 @@ export class MediaLensView extends ItemView {
 			const maxDur = Math.max(durA, durB);
 			seekInput.max = String(maxDur);
 			if (durA > 0 && durB > 0 && Math.abs(durA - durB) > 0.5) {
-				durationLabel.textContent = `A ${this.formatTimestamp(durA)} / B ${this.formatTimestamp(durB)}`;
+				durationLabel.textContent = `A ${formatTimestamp(durA)} / B ${formatTimestamp(durB)}`;
 			} else {
-				durationLabel.textContent = this.formatTimestamp(maxDur);
+				durationLabel.textContent = formatTimestamp(maxDur);
 			}
 		};
 		vidA.addEventListener("loadedmetadata", updateDuration);
@@ -543,7 +543,7 @@ export class MediaLensView extends ItemView {
 		const updateTime = () => {
 			if (scrubbing) return;
 			seekInput.value = String(vidA.currentTime);
-			timeLabel.textContent = this.formatTimestamp(vidA.currentTime);
+			timeLabel.textContent = formatTimestamp(vidA.currentTime);
 		};
 		vidA.addEventListener("timeupdate", updateTime);
 		updateTime();
@@ -555,7 +555,7 @@ export class MediaLensView extends ItemView {
 			scrubTarget = null;
 			vidA.currentTime = t;
 			vidB.currentTime = t;
-			timeLabel.textContent = this.formatTimestamp(t);
+			timeLabel.textContent = formatTimestamp(t);
 		};
 
 		const startScrub = () => {
@@ -569,7 +569,7 @@ export class MediaLensView extends ItemView {
 
 		seekInput.addEventListener("input", () => {
 			scrubTarget = parseFloat(seekInput.value);
-			timeLabel.textContent = this.formatTimestamp(scrubTarget);
+			timeLabel.textContent = formatTimestamp(scrubTarget);
 			if (rafId === null) {
 				rafId = requestAnimationFrame(applyScrub);
 			}
@@ -729,7 +729,7 @@ export class MediaLensView extends ItemView {
 		const updateDuration = () => {
 			const dur = video.duration || 0;
 			seekInput.max = String(dur);
-			durationLabel.textContent = this.formatTimestamp(dur);
+			durationLabel.textContent = formatTimestamp(dur);
 		};
 		video.addEventListener("loadedmetadata", updateDuration);
 		updateDuration();
@@ -740,7 +740,7 @@ export class MediaLensView extends ItemView {
 		const updateTime = () => {
 			if (scrubbing) return;
 			seekInput.value = String(video.currentTime);
-			timeLabel.textContent = this.formatTimestamp(video.currentTime);
+			timeLabel.textContent = formatTimestamp(video.currentTime);
 		};
 		video.addEventListener("timeupdate", updateTime);
 		updateTime();
@@ -758,7 +758,7 @@ export class MediaLensView extends ItemView {
 		seekInput.addEventListener("input", () => {
 			const t = parseFloat(seekInput.value);
 			video.currentTime = t;
-			timeLabel.textContent = this.formatTimestamp(t);
+			timeLabel.textContent = formatTimestamp(t);
 		});
 		const endScrub = () => {
 			if (!scrubbing) return;
@@ -861,7 +861,7 @@ export class MediaLensView extends ItemView {
 	}
 
 	private async captureFrame(video: HTMLVideoElement, slot: "primary" | "compare") {
-		if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
+		if (!isVideoReady(video)) {
 			new Notice("Video not ready for capture");
 			return;
 		}
@@ -879,18 +879,13 @@ export class MediaLensView extends ItemView {
 		if (!blob) return;
 
 		const time = video.currentTime;
-		const label = this.formatTimestamp(time);
+		const label = formatTimestamp(time);
 		this.captures.push({ slot, timestamp: time, blob, label });
 		this.updateCaptureStrip();
 		new Notice(`Frame captured at ${label}`);
 	}
 
-	private formatTimestamp(seconds: number): string {
-		const m = Math.floor(seconds / 60);
-		const s = Math.floor(seconds % 60);
-		const ms = Math.floor((seconds % 1) * 1000);
-		return `${m}:${String(s).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
-	}
+
 
 	private renderCaptureStrip(parent: HTMLElement) {
 		const strip = parent.createDiv({ cls: "media-lens-capture-strip" });

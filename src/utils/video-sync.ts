@@ -1,3 +1,14 @@
+export function formatTimestamp(seconds: number): string {
+	const m = Math.floor(seconds / 60);
+	const s = Math.floor(seconds % 60);
+	const ms = Math.floor((seconds % 1) * 1000);
+	return `${m}:${String(s).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
+}
+
+export function isVideoReady(video: HTMLVideoElement): boolean {
+	return video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0;
+}
+
 export interface DriftController {
 	start(): void;
 	stop(): void;
