@@ -28,7 +28,7 @@ export class MediaLensSettingTab extends PluginSettingTab {
 			.setDesc("The vault folder where inspection notes are saved")
 			.addText((text) =>
 				text
-		.setPlaceholder("media-lens")
+					.setPlaceholder("media-lens")
 					.setValue(this.plugin.settings.saveNotesDirectory)
 					.onChange(async (value) => {
 						this.plugin.settings.saveNotesDirectory = value;
@@ -43,7 +43,7 @@ export class MediaLensSettingTab extends PluginSettingTab {
 			)
 			.addText((text) =>
 				text
-		.setPlaceholder("media-lens/assets")
+					.setPlaceholder("media-lens/assets")
 					.setValue(this.plugin.settings.externalAssetsDirectory)
 					.onChange(async (value) => {
 						this.plugin.settings.externalAssetsDirectory = value;

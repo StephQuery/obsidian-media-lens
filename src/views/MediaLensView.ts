@@ -882,6 +882,11 @@ export class MediaLensView extends ItemView {
 		// Capture both at the aligned frame
 		await this.captureFrame(vidA, "primary");
 		await this.captureFrame(vidB, "compare");
+
+		// Resume if was playing
+		if (!wasPaused) {
+			Promise.all([vidA.play(), vidB.play()]).catch(() => { /* playback blocked */ });
+		}
 	}
 
 	private async captureFrame(video: HTMLVideoElement, slot: "primary" | "compare") {
