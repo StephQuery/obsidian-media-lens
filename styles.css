@@ -207,3 +207,41 @@
 	word-break: break-all;
 	min-width: 0;
 }
+
+/* ── Comparison View ── */
+
+.media-lens-compare-row {
+	display: grid;
+	grid-template-columns: 1fr 1fr 1fr;
+	gap: var(--size-4-1);
+	padding: var(--size-2-1) 0;
+	font-size: var(--font-ui-smaller);
+}
+
+.media-lens-compare-header {
+	font-weight: var(--font-semibold);
+	color: var(--text-muted);
+	border-bottom: 1px solid var(--background-modifier-border);
+	padding-bottom: var(--size-4-1);
+	margin-bottom: var(--size-2-1);
+}
+
+.media-lens-compare-key {
+	color: var(--text-muted);
+}
+
+.media-lens-compare-val {
+	color: var(--text-normal);
+	word-break: break-all;
+}
+
+.media-lens-compare-row--diff {
+	background: var(--background-modifier-hover);
+	border-radius: var(--radius-s);
+	padding-left: var(--size-4-1);
+	padding-right: var(--size-4-1);
+}
+
+.media-lens-compare-row--diff .media-lens-compare-val {
+	font-weight: var(--font-semibold);
+}

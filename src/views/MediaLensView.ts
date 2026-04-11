@@ -218,6 +218,79 @@ export class MediaLensView extends ItemView {
 		}
 	}
 
+	private renderComparison(parent: HTMLElement, a: LoadedFile, b: LoadedFile) {
+		const allSectionIds = new Map<string, { nameA?: string; nameB?: string }>();
+
+		for (const s of a.sections) {
+			allSectionIds.set(s.id, { nameA: s.name });
+		}
+		for (const s of b.sections) {
+			const existing = allSectionIds.get(s.id);
+			if (existing) {
+				existing.nameB = s.name;
+			} else {
+				allSectionIds.set(s.id, { nameB: s.name });
+			}
+		}
+
+		const sectionsA = new Map(a.sections.map(s => [s.id, s]));
+		const sectionsB = new Map(b.sections.map(s => [s.id, s]));
+
+		for (const [id, names] of allSectionIds) {
+			const sA = sectionsA.get(id);
+			const sB = sectionsB.get(id);
+			const sectionName = names.nameA ?? names.nameB ?? id;
+
+			const allKeys: string[] = [];
+			const seen = new Set<string>();
+			for (const f of sA?.fields ?? []) {
+				if (!seen.has(f.key)) { allKeys.push(f.key); seen.add(f.key); }
+			}
+			for (const f of sB?.fields ?? []) {
+				if (!seen.has(f.key)) { allKeys.push(f.key); seen.add(f.key); }
+			}
+
+			if (allKeys.length === 0) continue;
+
+			const fieldsA = new Map((sA?.fields ?? []).map(f => [f.key, f.value]));
+			const fieldsB = new Map((sB?.fields ?? []).map(f => [f.key, f.value]));
+
+			const wrapper = parent.createDiv({ cls: "media-lens-section" });
+			const header = wrapper.createDiv({ cls: "media-lens-section-header" });
+			const chevron = header.createSpan({ cls: "media-lens-section-chevron" });
+			setIcon(chevron, "chevron-down");
+			header.createSpan({ text: sectionName });
+
+			const body = wrapper.createDiv({ cls: "media-lens-section-body" });
+
+			// Column headers
+			const headerRow = body.createDiv({ cls: "media-lens-compare-row media-lens-compare-header" });
+			headerRow.createSpan({ text: "Field", cls: "media-lens-compare-key" });
+			headerRow.createSpan({ text: a.name, cls: "media-lens-compare-val" });
+			headerRow.createSpan({ text: b.name, cls: "media-lens-compare-val" });
+
+			for (const key of allKeys) {
+				const valA = fieldsA.get(key) ?? "—";
+				const valB = fieldsB.get(key) ?? "—";
+				const isDiff = valA !== valB;
+
+				const row = body.createDiv({
+					cls: `media-lens-compare-row${isDiff ? " media-lens-compare-row--diff" : ""}`,
+				});
+				row.createSpan({ text: key, cls: "media-lens-compare-key" });
+				row.createSpan({ text: valA, cls: "media-lens-compare-val" });
+				row.createSpan({ text: valB, cls: "media-lens-compare-val" });
+			}
+
+			header.addEventListener("click", () => {
+				body.toggleClass("media-lens-section-body--collapsed",
+					!body.hasClass("media-lens-section-body--collapsed"));
+				chevron.toggleClass("media-lens-section-chevron--collapsed",
+					body.hasClass("media-lens-section-body--collapsed"));
+			});
+		}
+	}
+
 	private async handleDrop(e: DragEvent, slot: "primary" | "compare") {
 		const droppedFile = e.dataTransfer?.files?.[0];
 		if (droppedFile) {
