@@ -191,14 +191,6 @@
 	margin: 0;
 }
 
-/* ── Actions Bar ── */
-
-.media-lens-actions {
-	display: flex;
-	flex-direction: column;
-	gap: var(--size-4-2);
-}
-
 /* ── Action Row ── */
 
 .media-lens-action-row {
