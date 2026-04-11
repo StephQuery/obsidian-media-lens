@@ -12,6 +12,9 @@ node_modules
 # They should be uploaded to GitHub releases instead.
 main.js
 
+# WASM binary (copied during build from node_modules)
+MediaInfoModule.wasm
+
 # Exclude sourcemaps
 *.map
 

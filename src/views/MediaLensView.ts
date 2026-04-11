@@ -7,6 +7,9 @@ import {
 	getCategoryLabel,
 } from "../utils/media";
 import type { MediaCategory } from "../utils/media";
+import { parseBuffer } from "../parsers/media-info-parser";
+import { normalizeTracks } from "../parsers/track-normalizer";
+import type { MetadataSection } from "../parsers/types";
 
 export const VIEW_TYPE_MEDIA_LENS = "media-lens-view";
 
@@ -16,6 +19,7 @@ interface LoadedFile {
 	source: "vault" | "external";
 	buffer: ArrayBuffer;
 	category: MediaCategory;
+	sections: MetadataSection[];
 }
 
 export class MediaLensView extends ItemView {
@@ -72,8 +76,10 @@ export class MediaLensView extends ItemView {
 		this.renderDropZone(container, "primary");
 		this.renderDropZone(container, "compare");
 
-		if (this.primaryFile) {
-			this.renderMetadata(container);
+		if (this.primaryFile && this.compareFile) {
+			this.renderComparison(container, this.primaryFile, this.compareFile);
+		} else if (this.primaryFile) {
+			this.renderSections(container, this.primaryFile.sections);
 		} else {
 			const hint = container.createDiv({ cls: "media-lens-hint" });
 			hint.createEl("span", {
@@ -178,12 +184,38 @@ export class MediaLensView extends ItemView {
 		});
 	}
 
-	private renderMetadata(parent: HTMLElement) {
-		const section = parent.createDiv({ cls: "media-lens-metadata" });
-		section.createEl("p", {
-			text: "Metadata parsing coming soon...",
-			cls: "media-lens-muted",
-		});
+	private renderSections(parent: HTMLElement, sections: MetadataSection[]) {
+		for (const section of sections) {
+			if (section.fields.length === 0) continue;
+
+			const wrapper = parent.createDiv({ cls: "media-lens-section" });
+			const header = wrapper.createDiv({ cls: "media-lens-section-header" });
+
+			const chevron = header.createSpan({ cls: "media-lens-section-chevron" });
+			setIcon(chevron, "chevron-down");
+
+			header.createSpan({ text: section.name });
+
+			const body = wrapper.createDiv({ cls: "media-lens-section-body" });
+
+			if (!section.defaultExpanded) {
+				body.addClass("media-lens-section-body--collapsed");
+				chevron.addClass("media-lens-section-chevron--collapsed");
+			}
+
+			header.addEventListener("click", () => {
+				body.toggleClass("media-lens-section-body--collapsed",
+					!body.hasClass("media-lens-section-body--collapsed"));
+				chevron.toggleClass("media-lens-section-chevron--collapsed",
+					body.hasClass("media-lens-section-body--collapsed"));
+			});
+
+			for (const field of section.fields) {
+				const row = body.createDiv({ cls: "media-lens-field" });
+				row.createSpan({ text: field.key, cls: "media-lens-field-key" });
+				row.createSpan({ text: field.value, cls: "media-lens-field-value" });
+			}
+		}
 	}
 
 	private async handleDrop(e: DragEvent, slot: "primary" | "compare") {
@@ -223,7 +255,6 @@ export class MediaLensView extends ItemView {
 			cleanup();
 		});
 
-		// Clean up if the user cancels the picker
 		window.addEventListener("focus", cleanup, { once: true });
 
 		document.body.appendChild(input);
@@ -244,9 +275,13 @@ export class MediaLensView extends ItemView {
 
 		try {
 			const buffer = await bufferOrPromise;
-			this.setFile(slot, { name, size: buffer.byteLength, source, buffer, category });
-		} catch {
-			new Notice("Failed to read file");
+			const wasmUrl = this.plugin.getWasmUrl();
+			const result = await parseBuffer(buffer, wasmUrl);
+			const sections = normalizeTracks(result);
+			this.setFile(slot, { name, size: buffer.byteLength, source, buffer, category, sections });
+		} catch (err) {
+			console.error("Media Lens: parse error", err);
+			new Notice("Failed to read file metadata");
 		}
 	}
 

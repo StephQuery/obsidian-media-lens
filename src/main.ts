@@ -1,10 +1,17 @@
-import { Plugin, WorkspaceLeaf } from "obsidian";
+import { normalizePath, Plugin, WorkspaceLeaf } from "obsidian";
 import { DEFAULT_SETTINGS, MediaLensSettingTab } from "./settings";
 import { MediaLensView, VIEW_TYPE_MEDIA_LENS } from "./views/MediaLensView";
+import { closeParser } from "./parsers/media-info-parser";
 import type { MediaLensSettings } from "./settings";
 
 export default class MediaLensPlugin extends Plugin {
 	settings: MediaLensSettings;
+
+	getWasmUrl(): string {
+		const dir = this.manifest.dir ?? "";
+		const wasmPath = normalizePath(`${dir}/MediaInfoModule.wasm`);
+		return this.app.vault.adapter.getResourcePath(wasmPath);
+	}
 
 	async onload() {
 		await this.loadSettings();
@@ -38,6 +45,10 @@ export default class MediaLensPlugin extends Plugin {
 		});
 
 		this.addSettingTab(new MediaLensSettingTab(this.app, this));
+	}
+
+	onunload() {
+		closeParser();
 	}
 
 	async activateView() {
