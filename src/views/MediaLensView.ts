@@ -102,6 +102,7 @@ export class MediaLensView extends ItemView {
 	clearAll() {
 		this.primaryFile = null;
 		this.compareFile = null;
+		this.syncEnabled = false;
 		this.captures = [];
 		this.render();
 	}
