@@ -78,10 +78,12 @@ function buildComparisonSections(
 		parts.push("|-------|-------|-------|");
 
 		for (const key of allKeys) {
-			const valA = escapeCell(fieldsA.get(key) ?? "—");
-			const valB = escapeCell(fieldsB.get(key) ?? "—");
+			const rawA = fieldsA.get(key) ?? "—";
+			const rawB = fieldsB.get(key) ?? "—";
+			const isDiff = rawA !== rawB;
+			const valA = escapeCell(rawA);
+			const valB = escapeCell(rawB);
 			const k = escapeCell(key);
-			const isDiff = valA !== valB;
 			if (isDiff) {
 				parts.push(`| ${k} | **${valA}** | **${valB}** |`);
 			} else {

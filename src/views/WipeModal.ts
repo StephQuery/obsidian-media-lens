@@ -229,8 +229,8 @@ export class WipeModal extends Modal {
 				this.syncPlay(vidA, vidB);
 			}
 		};
-		seekInput.addEventListener("mouseup", endScrub);
-		seekInput.addEventListener("touchend", endScrub);
+		this.addDocListener("mouseup", endScrub);
+		this.addDocListener("touchend", endScrub);
 
 		// Mute row
 		const muteRow = transport.createDiv({ cls: "media-lens-wipe-mute-row" });

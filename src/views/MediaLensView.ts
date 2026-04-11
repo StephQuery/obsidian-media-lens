@@ -401,7 +401,6 @@ export class MediaLensView extends ItemView {
 			} else if (this.primaryVideo) {
 				void this.captureFrame(this.primaryVideo, "primary");
 			}
-			this.updateCaptureStrip();
 		});
 	}
 
@@ -604,8 +603,8 @@ export class MediaLensView extends ItemView {
 				Promise.all([vidA.play(), vidB.play()]).catch(() => { /* playback blocked */ });
 			}
 		};
-		seekInput.addEventListener("mouseup", endScrub);
-		seekInput.addEventListener("touchend", endScrub);
+		document.addEventListener("mouseup", endScrub);
+		document.addEventListener("touchend", endScrub);
 
 		// Controls row: [Mute A] [Mute B] | [◀◀] [◀ Frame] [⏹] [▶⏸] [Frame ▶] [▶▶] | [📷] | fps
 		const controls = bar.createDiv({ cls: "media-lens-transport-controls" });
@@ -779,8 +778,8 @@ export class MediaLensView extends ItemView {
 			scrubbing = false;
 			if (wasPlaying) video.play().catch(() => { /* blocked */ });
 		};
-		seekInput.addEventListener("mouseup", endScrub);
-		seekInput.addEventListener("touchend", endScrub);
+		document.addEventListener("mouseup", endScrub);
+		document.addEventListener("touchend", endScrub);
 
 		// Controls row
 		const controls = transport.createDiv({ cls: "media-lens-transport-controls" });
