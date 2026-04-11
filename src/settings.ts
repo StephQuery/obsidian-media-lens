@@ -25,10 +25,10 @@ export class MediaLensSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Save notes directory")
-			.setDesc("Vault folder where inspection notes are saved.")
+			.setDesc("The vault folder where inspection notes are saved")
 			.addText((text) =>
 				text
-					.setPlaceholder("media-lens")
+		.setPlaceholder("media-lens")
 					.setValue(this.plugin.settings.saveNotesDirectory)
 					.onChange(async (value) => {
 						this.plugin.settings.saveNotesDirectory = value;
@@ -39,11 +39,11 @@ export class MediaLensSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("External file assets directory")
 			.setDesc(
-				"Vault folder where external files are copied when saving a note."
+				"Vault folder where external files are copied when saving a note"
 			)
 			.addText((text) =>
 				text
-					.setPlaceholder("media-lens/assets")
+		.setPlaceholder("media-lens/assets")
 					.setValue(this.plugin.settings.externalAssetsDirectory)
 					.onChange(async (value) => {
 						this.plugin.settings.externalAssetsDirectory = value;

@@ -22,6 +22,14 @@ export default tseslint.config(
 		},
 	},
 	...obsidianmd.configs.recommended,
+	{
+		plugins: { obsidianmd },
+		rules: {
+			"obsidianmd/ui/sentence-case": ["error", {
+				ignoreRegex: ["^[a-z0-9./-]+$"],
+			}],
+		},
+	},
 	globalIgnores([
 		"node_modules",
 		"dist",

@@ -124,6 +124,12 @@
 	background: var(--background-modifier-hover);
 }
 
+/* ── Utility ── */
+
+.media-lens-hidden {
+	display: none;
+}
+
 /* ── Hint ── */
 
 .media-lens-hint {

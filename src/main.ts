@@ -14,21 +14,26 @@ export default class MediaLensPlugin extends Plugin {
 			(leaf) => new MediaLensView(leaf, this)
 		);
 
-		this.addRibbonIcon("film", "Media Lens", () => {
-			this.activateView();
+		this.addRibbonIcon("film", "Open media lens", () => {
+			void this.activateView();
 		});
 
 		this.addCommand({
 			id: "show-panel",
-			name: "Show Media Lens panel",
-			callback: () => this.activateView(),
+			name: "Show panel",
+			callback: () => {
+				void this.activateView();
+			},
 		});
 
 		this.addCommand({
 			id: "clear-panel",
-			name: "Clear Media Lens panel",
+			name: "Clear panel",
 			callback: () => {
-				// Will be wired up when drop zones are added
+				const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_MEDIA_LENS)[0];
+				if (leaf?.view instanceof MediaLensView) {
+					leaf.view.clearAll();
+				}
 			},
 		});
 
@@ -53,7 +58,7 @@ export default class MediaLensPlugin extends Plugin {
 		}
 
 		if (leaf) {
-			workspace.revealLeaf(leaf);
+			await workspace.revealLeaf(leaf);
 		}
 	}
 
@@ -61,7 +66,7 @@ export default class MediaLensPlugin extends Plugin {
 		this.settings = Object.assign(
 			{},
 			DEFAULT_SETTINGS,
-			await this.loadData()
+			(await this.loadData()) as Partial<MediaLensSettings> | null
 		);
 	}
 

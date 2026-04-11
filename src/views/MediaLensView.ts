@@ -1,4 +1,4 @@
-import { ItemView, Notice, TFile, WorkspaceLeaf } from "obsidian";
+import { ItemView, Notice, setIcon, TFile, WorkspaceLeaf } from "obsidian";
 import type MediaLensPlugin from "../main";
 
 export const VIEW_TYPE_MEDIA_LENS = "media-lens-view";
@@ -28,7 +28,7 @@ export class MediaLensView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		return "Media Lens";
+		return "Media lens";
 	}
 
 	getIcon(): string {
@@ -95,8 +95,8 @@ export class MediaLensView extends ItemView {
 			cls: `media-lens-drop-zone${disabled ? " media-lens-drop-zone--disabled" : ""}`,
 		});
 
-		const icon = zone.createDiv({ cls: "media-lens-drop-icon" });
-		icon.innerHTML = isPrimary ? this.uploadIcon() : this.diffIcon();
+		const iconEl = zone.createDiv({ cls: "media-lens-drop-icon" });
+		setIcon(iconEl, isPrimary ? "upload" : "columns-2");
 
 		let label: string;
 		if (isPrimary) {
@@ -117,12 +117,13 @@ export class MediaLensView extends ItemView {
 			const actions = zone.createDiv({ cls: "media-lens-drop-actions" });
 
 			const browseBtn = actions.createEl("button", {
-				text: "Browse vault",
+				text: "Browse files",
 				cls: "media-lens-btn media-lens-btn-secondary",
 			});
-			browseBtn.addEventListener("click", () => this.browseVault(slot));
+			browseBtn.addEventListener("click", () => {
+				this.browseFiles(slot);
+			});
 
-			// Drag-and-drop
 			zone.addEventListener("dragover", (e: DragEvent) => {
 				e.preventDefault();
 				e.stopPropagation();
@@ -135,11 +136,11 @@ export class MediaLensView extends ItemView {
 				zone.removeClass("media-lens-drop-zone--over");
 			});
 
-			zone.addEventListener("drop", async (e: DragEvent) => {
+			zone.addEventListener("drop", (e: DragEvent) => {
 				e.preventDefault();
 				e.stopPropagation();
 				zone.removeClass("media-lens-drop-zone--over");
-				await this.handleDrop(e, slot);
+				void this.handleDrop(e, slot);
 			});
 		}
 	}
@@ -165,7 +166,7 @@ export class MediaLensView extends ItemView {
 			cls: "media-lens-btn-clear",
 			attr: { "aria-label": "Remove file" },
 		});
-		clearBtn.innerHTML = this.closeIcon();
+		setIcon(clearBtn, "x");
 		clearBtn.addEventListener("click", () => {
 			if (slot === "primary") this.clearPrimary();
 			else this.clearCompare();
@@ -181,7 +182,6 @@ export class MediaLensView extends ItemView {
 	}
 
 	private async handleDrop(e: DragEvent, slot: "primary" | "compare") {
-		// External files from OS
 		const droppedFile = e.dataTransfer?.files?.[0];
 		if (droppedFile) {
 			const category = this.getCategory(droppedFile.name);
@@ -200,46 +200,58 @@ export class MediaLensView extends ItemView {
 			return;
 		}
 
-		// Vault files (internal Obsidian drag)
 		const path = e.dataTransfer?.getData("text/plain");
 		if (path) {
 			await this.loadVaultFile(path, slot);
 		}
 	}
 
-	private async browseVault(slot: "primary" | "compare") {
-		const files = this.app.vault.getFiles();
-		let mediaFiles = files.filter((f) => this.isSupportedExtension(f.extension));
+	private browseFiles(slot: "primary" | "compare") {
+		const accept = this.getAcceptString(slot);
+		const input = document.createElement("input");
+		input.type = "file";
+		input.accept = accept;
+		input.addClass("media-lens-hidden");
 
-		// When browsing for compare, only show files of the same category
+		input.addEventListener("change", () => {
+			const file = input.files?.[0];
+			if (file) {
+				void this.loadExternalFile(file, slot);
+			}
+			input.remove();
+		});
+
+		document.body.appendChild(input);
+		input.click();
+	}
+
+	private getAcceptString(slot: "primary" | "compare"): string {
 		if (slot === "compare" && this.primaryFile) {
-			const requiredCategory = this.primaryFile.category;
-			mediaFiles = mediaFiles.filter(
-				(f) => this.getCategory(f.name) === requiredCategory
-			);
+			const accepts: Record<MediaCategory, string> = {
+				image: "image/*,.tif,.tiff,.bmp,.svg",
+				video: "video/*,.mkv",
+				audio: "audio/*,.flac,.ogg,.oga",
+				subtitle: ".srt,.vtt,.ass,.ssa",
+			};
+			return accepts[this.primaryFile.category];
 		}
+		return "image/*,video/*,audio/*,.mkv,.flac,.ogg,.oga,.srt,.vtt,.ass,.ssa,.tif,.tiff,.bmp,.svg";
+	}
 
-		if (mediaFiles.length === 0) {
+	private async loadExternalFile(file: File, slot: "primary" | "compare") {
+		const category = this.getCategory(file.name);
+		if (!category) {
+			new Notice("Unsupported file type");
 			return;
 		}
-
-		// Use Obsidian's built-in fuzzy suggest modal
-		const { FuzzySuggestModal } = await import("obsidian");
-
-		const modal = new (class extends FuzzySuggestModal<TFile> {
-			getItems() {
-				return mediaFiles;
-			}
-			getItemText(item: TFile) {
-				return item.path;
-			}
-			async onChooseItem(item: TFile) {
-				await self.loadVaultFile(item.path, slot);
-			}
-		})(this.app);
-
-		const self = this;
-		modal.open();
+		const buffer = await file.arrayBuffer();
+		this.setFile(slot, {
+			name: file.name,
+			size: buffer.byteLength,
+			source: "external",
+			buffer,
+			category,
+		});
 	}
 
 	private async loadVaultFile(path: string, slot: "primary" | "compare") {
@@ -273,7 +285,6 @@ export class MediaLensView extends ItemView {
 
 		if (slot === "primary") {
 			this.primaryFile = file;
-			// Clear compare if the category no longer matches
 			if (this.compareFile && this.compareFile.category !== file.category) {
 				this.compareFile = null;
 			}
@@ -316,18 +327,5 @@ export class MediaLensView extends ItemView {
 		const units = ["B", "KB", "MB", "GB"];
 		const i = Math.floor(Math.log(bytes) / Math.log(1024));
 		return (bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1) + " " + units[i];
-	}
-
-	// Inline SVG icons (Lucide-style, 18px)
-	private uploadIcon(): string {
-		return '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>';
-	}
-
-	private diffIcon(): string {
-		return '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="12" y1="4" x2="12" y2="20"/></svg>';
-	}
-
-	private closeIcon(): string {
-		return '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
 	}
 }
