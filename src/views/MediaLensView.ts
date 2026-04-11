@@ -16,6 +16,7 @@ import { generateSingleNote, generateComparisonNote, generateNoteName } from "..
 import type { NoteCapture } from "../notes/note-generator";
 import { saveNote, copyExternalFileToVault, saveCaptureToVault } from "../notes/note-writer";
 import { openWipeModal } from "./WipeModal";
+import { createDriftController } from "../utils/video-sync";
 
 export const VIEW_TYPE_MEDIA_LENS = "media-lens-view";
 
@@ -484,53 +485,16 @@ export class MediaLensView extends ItemView {
 
 		const fps = this.getFrameRate(this.primaryFile);
 		const frameDuration = 1 / fps;
-		// Rate-based drift correction — nudge vidB's playback speed instead of hard seeking
-		let driftRaf: number | null = null;
-		let driftActive = false;
-		const correctDrift = () => {
-			if (!driftActive || vidA.paused || vidB.paused || vidA.ended || vidB.ended) {
-				driftRaf = null;
-				driftActive = false;
-				vidB.playbackRate = 1;
-				return;
-			}
-
-			const drift = vidB.currentTime - vidA.currentTime;
-			if (Math.abs(drift) > 1) {
-				vidB.currentTime = vidA.currentTime;
-				vidB.playbackRate = 1;
-			} else if (Math.abs(drift) > frameDuration) {
-				vidB.playbackRate = drift > 0 ? 0.95 : 1.05;
-			} else {
-				vidB.playbackRate = 1;
-			}
-
-			driftRaf = requestAnimationFrame(correctDrift);
-		};
-
-		const startDriftCorrection = () => {
-			if (!driftActive) {
-				driftActive = true;
-				driftRaf = requestAnimationFrame(correctDrift);
-			}
-		};
-		const stopDriftCorrection = () => {
-			driftActive = false;
-			if (driftRaf !== null) {
-				cancelAnimationFrame(driftRaf);
-				driftRaf = null;
-			}
-			vidB.playbackRate = 1;
-		};
+		const drift = createDriftController(vidA, vidB, frameDuration);
+		this.driftRafCleanup = () => drift.stop();
 
 		vidA.addEventListener("play", () => {
 			vidB.currentTime = vidA.currentTime;
 			vidB.playbackRate = 1;
-			startDriftCorrection();
+			drift.start();
 		});
-		vidA.addEventListener("pause", stopDriftCorrection);
-		vidA.addEventListener("ended", stopDriftCorrection);
-		this.driftRafCleanup = stopDriftCorrection;
+		vidA.addEventListener("pause", () => drift.stop());
+		vidA.addEventListener("ended", () => drift.stop());
 
 		const bar = parent.createDiv({ cls: "media-lens-transport" });
 
@@ -918,6 +882,7 @@ export class MediaLensView extends ItemView {
 		const label = this.formatTimestamp(time);
 		this.captures.push({ slot, timestamp: time, blob, label });
 		this.updateCaptureStrip();
+		new Notice(`Frame captured at ${label}`);
 	}
 
 	private formatTimestamp(seconds: number): string {

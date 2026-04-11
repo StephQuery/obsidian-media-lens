@@ -1,6 +1,7 @@
 import { Modal, setIcon } from "obsidian";
 import type MediaLensPlugin from "../main";
 import { getMimeType } from "../utils/media";
+import { createDriftController, type DriftController } from "../utils/video-sync";
 import type { MediaCategory } from "../utils/media";
 
 interface WipeFile {
@@ -19,7 +20,7 @@ export class WipeModal extends Modal {
 	private vidA: HTMLVideoElement | null = null;
 	private vidB: HTMLVideoElement | null = null;
 	private objectUrls: string[] = [];
-	private syncRaf: number | null = null;
+	private driftController: DriftController | null = null;
 	private wipePosition = 50;
 	private documentListeners: Array<{ type: string; handler: EventListener }> = [];
 
@@ -45,7 +46,7 @@ export class WipeModal extends Modal {
 	}
 
 	onClose() {
-		this.stopSync();
+		if (this.driftController) this.driftController.stop();
 		for (const { type, handler } of this.documentListeners) {
 			document.removeEventListener(type, handler);
 		}
@@ -166,11 +167,18 @@ export class WipeModal extends Modal {
 		};
 
 		const updateDuration = () => {
-			const dur = vidA.duration || 0;
-			seekInput.max = String(dur);
-			durationLabel.textContent = fmt(dur);
+			const durA = vidA.duration || 0;
+			const durB = vidB.duration || 0;
+			const maxDur = Math.max(durA, durB);
+			seekInput.max = String(maxDur);
+			if (durA > 0 && durB > 0 && Math.abs(durA - durB) > 0.5) {
+				durationLabel.textContent = `A ${fmt(durA)} / B ${fmt(durB)}`;
+			} else {
+				durationLabel.textContent = fmt(maxDur);
+			}
 		};
 		vidA.addEventListener("loadedmetadata", updateDuration);
+		vidB.addEventListener("loadedmetadata", updateDuration);
 		updateDuration();
 
 		// Scrub logic (rAF throttled, videos paused during scrub)
@@ -291,53 +299,22 @@ export class WipeModal extends Modal {
 	}
 
 	private syncPlay(vidA: HTMLVideoElement, vidB: HTMLVideoElement) {
-		// Align before playing
 		vidB.currentTime = vidA.currentTime;
 		vidB.playbackRate = 1;
-
 		Promise.all([vidA.play(), vidB.play()]).catch(() => { /* playback blocked */ });
 
-		// Start rate-based drift correction
-		this.startSync(vidA, vidB);
+		if (!this.driftController) {
+			this.driftController = createDriftController(vidA, vidB, 1 / this.fileA.frameRate);
+		}
+		this.driftController.start();
 	}
 
 	private syncPause(vidA: HTMLVideoElement, vidB: HTMLVideoElement) {
-		this.stopSync();
+		if (this.driftController) this.driftController.stop();
 		vidA.pause();
 		vidB.pause();
 		vidB.playbackRate = 1;
 		vidB.currentTime = vidA.currentTime;
-	}
-
-	private startSync(vidA: HTMLVideoElement, vidB: HTMLVideoElement) {
-		this.stopSync();
-
-		const frameDuration = 1 / this.fileA.frameRate;
-
-		const loop = () => {
-			if (vidA.paused || vidB.paused) {
-				this.stopSync();
-				return;
-			}
-
-			const drift = vidB.currentTime - vidA.currentTime;
-
-			if (Math.abs(drift) > 1) {
-				// Way too far off — hard seek
-				vidB.currentTime = vidA.currentTime;
-				vidB.playbackRate = 1;
-			} else if (Math.abs(drift) > frameDuration) {
-				// Nudge playback rate to catch up or slow down
-				vidB.playbackRate = drift > 0 ? 0.95 : 1.05;
-			} else {
-				// In sync — normal speed
-				vidB.playbackRate = 1;
-			}
-
-			this.syncRaf = requestAnimationFrame(loop);
-		};
-
-		this.syncRaf = requestAnimationFrame(loop);
 	}
 
 	private async captureWipeComposite(vidA: HTMLVideoElement, vidB: HTMLVideoElement) {
@@ -393,12 +370,6 @@ export class WipeModal extends Modal {
 		this.onCapture(vidA, vidB, blob);
 	}
 
-	private stopSync() {
-		if (this.syncRaf !== null) {
-			cancelAnimationFrame(this.syncRaf);
-			this.syncRaf = null;
-		}
-	}
 
 	private makeBtn(parent: HTMLElement, icon: string, label: string): HTMLElement {
 		const btn = parent.createEl("button", {
