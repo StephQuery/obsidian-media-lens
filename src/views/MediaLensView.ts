@@ -1109,6 +1109,8 @@ export class MediaLensView extends ItemView {
 			const fieldsA = new Map((sA?.fields ?? []).map(f => [f.key, f.value]));
 			const fieldsB = new Map((sB?.fields ?? []).map(f => [f.key, f.value]));
 
+			const defaultExpanded = (sA?.defaultExpanded ?? true) || (sB?.defaultExpanded ?? true);
+
 			const wrapper = parent.createDiv({ cls: "media-lens-section" });
 			const header = wrapper.createDiv({ cls: "media-lens-section-header" });
 			const chevron = header.createSpan({ cls: "media-lens-section-chevron" });
@@ -1116,6 +1118,11 @@ export class MediaLensView extends ItemView {
 			header.createSpan({ text: sectionName });
 
 			const body = wrapper.createDiv({ cls: "media-lens-section-body" });
+
+			if (!defaultExpanded) {
+				body.addClass("media-lens-section-body--collapsed");
+				chevron.addClass("media-lens-section-chevron--collapsed");
+			}
 
 			// Column headers
 			const headerRow = body.createDiv({ cls: "media-lens-compare-row media-lens-compare-header" });

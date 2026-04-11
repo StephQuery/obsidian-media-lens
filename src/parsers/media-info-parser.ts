@@ -6,30 +6,38 @@ interface MediaInfoInstance {
 }
 
 let instance: MediaInfoInstance | null = null;
+let initPromise: Promise<MediaInfoInstance> | null = null;
 let initFailed = false;
 
 async function getInstance(wasmUrl: string): Promise<MediaInfoInstance> {
 	if (instance) return instance;
 	if (initFailed) throw new Error("MediaInfo WASM failed to load previously. Reload the plugin to retry.");
+	if (initPromise) return initPromise;
 
-	try {
-		const { mediaInfoFactory } = await import("mediainfo.js");
+	initPromise = (async () => {
+		try {
+			const { mediaInfoFactory } = await import("mediainfo.js");
 
-		const mi = await (mediaInfoFactory as (opts: {
-			format: "object";
-			locateFile: () => string;
-		}) => Promise<MediaInfoInstance>)({
-			format: "object",
-			locateFile: () => wasmUrl,
-		});
+			const mi = await (mediaInfoFactory as (opts: {
+				format: "object";
+				locateFile: () => string;
+			}) => Promise<MediaInfoInstance>)({
+				format: "object",
+				locateFile: () => wasmUrl,
+			});
 
-		instance = mi;
-		return mi;
-	} catch (err) {
-		initFailed = true;
-		const msg = err instanceof Error ? err.message : String(err);
-		throw new Error(`Failed to initialize MediaInfo WASM module: ${msg}`);
-	}
+			instance = mi;
+			return mi;
+		} catch (err) {
+			initFailed = true;
+			const msg = err instanceof Error ? err.message : String(err);
+			throw new Error(`Failed to initialize MediaInfo WASM module: ${msg}`);
+		} finally {
+			initPromise = null;
+		}
+	})();
+
+	return initPromise;
 }
 
 /**
@@ -55,5 +63,6 @@ export function closeParser(): void {
 		instance.close();
 		instance = null;
 	}
+	initPromise = null;
 	initFailed = false;
 }
