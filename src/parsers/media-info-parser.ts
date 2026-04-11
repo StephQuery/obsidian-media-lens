@@ -6,28 +6,36 @@ interface MediaInfoInstance {
 }
 
 let instance: MediaInfoInstance | null = null;
+let initFailed = false;
 
 async function getInstance(wasmUrl: string): Promise<MediaInfoInstance> {
 	if (instance) return instance;
+	if (initFailed) throw new Error("MediaInfo WASM failed to load previously. Reload the plugin to retry.");
 
-	const { mediaInfoFactory } = await import("mediainfo.js");
+	try {
+		const { mediaInfoFactory } = await import("mediainfo.js");
 
-	const mi = await (mediaInfoFactory as (opts: {
-		format: "object";
-		locateFile: () => string;
-	}) => Promise<MediaInfoInstance>)({
-		format: "object",
-		locateFile: () => wasmUrl,
-	});
+		const mi = await (mediaInfoFactory as (opts: {
+			format: "object";
+			locateFile: () => string;
+		}) => Promise<MediaInfoInstance>)({
+			format: "object",
+			locateFile: () => wasmUrl,
+		});
 
-	instance = mi;
-	return mi;
+		instance = mi;
+		return mi;
+	} catch (err) {
+		initFailed = true;
+		const msg = err instanceof Error ? err.message : String(err);
+		throw new Error(`Failed to initialize MediaInfo WASM module: ${msg}`);
+	}
 }
 
 /**
  * Parse a media file buffer using mediainfo.js.
  * @param buffer The file contents as an ArrayBuffer
- * @param wasmUrl Absolute URL to MediaInfoModule.wasm (use app.vault.adapter.getResourcePath())
+ * @param wasmUrl Absolute URL to MediaInfoModule.wasm
  */
 export async function parseBuffer(
 	buffer: ArrayBuffer,
@@ -47,4 +55,5 @@ export function closeParser() {
 		instance.close();
 		instance = null;
 	}
+	initFailed = false;
 }

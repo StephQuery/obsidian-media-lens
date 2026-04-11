@@ -30,6 +30,10 @@ export class MediaLensView extends ItemView {
 	primaryFile: LoadedFile | null = null;
 	compareFile: LoadedFile | null = null;
 	private objectUrls: string[] = [];
+	private syncEnabled = false;
+	private primaryVideo: HTMLVideoElement | null = null;
+	private compareVideo: HTMLVideoElement | null = null;
+	private syncing = false; // guard against infinite loops
 
 	constructor(leaf: WorkspaceLeaf, plugin: MediaLensPlugin) {
 		super(leaf);
@@ -88,17 +92,23 @@ export class MediaLensView extends ItemView {
 
 	private render() {
 		this.revokeObjectUrls();
+		this.primaryVideo = null;
+		this.compareVideo = null;
 		const container = this.contentEl;
 		container.empty();
 		container.addClass("media-lens-container");
 
 		this.renderDropZone(container, "primary");
 		if (this.primaryFile) {
-			this.renderPreview(container, this.primaryFile);
+			this.renderPreview(container, this.primaryFile, "primary");
 		}
 		this.renderDropZone(container, "compare");
 		if (this.compareFile) {
-			this.renderPreview(container, this.compareFile);
+			this.renderPreview(container, this.compareFile, "compare");
+		}
+
+		if (this.primaryVideo && this.compareVideo) {
+			this.renderSyncToggle(container);
 		}
 
 		if (this.primaryFile) {
@@ -213,7 +223,7 @@ export class MediaLensView extends ItemView {
 		});
 	}
 
-	private renderPreview(parent: HTMLElement, file: LoadedFile) {
+	private renderPreview(parent: HTMLElement, file: LoadedFile, slot: "primary" | "compare") {
 		const wrapper = parent.createDiv({ cls: "media-lens-preview" });
 		const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
 		const mime = getMimeType(ext, file.category);
@@ -245,10 +255,13 @@ export class MediaLensView extends ItemView {
 			}
 			case "video": {
 				const url = this.createObjectUrl(file.buffer, mime);
-				wrapper.createEl("video", {
+				const video = wrapper.createEl("video", {
 					cls: "media-lens-preview-video",
 					attr: { src: url, controls: "true", preload: "metadata" },
 				});
+				if (slot === "primary") this.primaryVideo = video;
+				else this.compareVideo = video;
+				this.attachSyncListeners(video, slot);
 				break;
 			}
 			case "audio": {
@@ -286,6 +299,63 @@ export class MediaLensView extends ItemView {
 		});
 		btn.addEventListener("click", () => {
 			void this.handleSave();
+		});
+	}
+
+	private renderSyncToggle(parent: HTMLElement) {
+		const wrapper = parent.createDiv({ cls: "media-lens-sync-bar" });
+		const btn = wrapper.createEl("button", {
+			cls: `media-lens-btn media-lens-btn-sync${this.syncEnabled ? " media-lens-btn-sync--active" : ""}`,
+		});
+		const iconEl = btn.createSpan();
+		setIcon(iconEl, "link");
+		btn.createSpan({ text: this.syncEnabled ? "Synced" : "Sync playback" });
+
+		btn.addEventListener("click", () => {
+			this.syncEnabled = !this.syncEnabled;
+			btn.toggleClass("media-lens-btn-sync--active", this.syncEnabled);
+			const label = btn.querySelector("span:last-child");
+			if (label) label.textContent = this.syncEnabled ? "Synced" : "Sync playback";
+
+			if (this.syncEnabled && this.primaryVideo && this.compareVideo) {
+				this.compareVideo.currentTime = this.primaryVideo.currentTime;
+				if (!this.primaryVideo.paused) {
+					void this.compareVideo.play();
+				}
+			}
+		});
+	}
+
+	private attachSyncListeners(video: HTMLVideoElement, slot: "primary" | "compare") {
+		const getOther = () => slot === "primary" ? this.compareVideo : this.primaryVideo;
+
+		video.addEventListener("play", () => {
+			if (!this.syncEnabled || this.syncing) return;
+			const other = getOther();
+			if (other) {
+				this.syncing = true;
+				void other.play().finally(() => { this.syncing = false; });
+			}
+		});
+
+		video.addEventListener("pause", () => {
+			if (!this.syncEnabled || this.syncing) return;
+			const other = getOther();
+			if (other) {
+				this.syncing = true;
+				other.pause();
+				this.syncing = false;
+			}
+		});
+
+		video.addEventListener("seeked", () => {
+			if (!this.syncEnabled || this.syncing) return;
+			const other = getOther();
+			if (other) {
+				this.syncing = true;
+				other.currentTime = video.currentTime;
+				this.syncing = false;
+			}
 		});
 	}
 
@@ -337,7 +407,8 @@ export class MediaLensView extends ItemView {
 			new Notice("Saved inspection note");
 		} catch (err) {
 			console.error("Media Lens: save error", err);
-			new Notice("Failed to save note");
+			const msg = err instanceof Error ? err.message : String(err);
+			new Notice(`Failed to save note: ${msg}`);
 		}
 	}
 
@@ -499,7 +570,7 @@ export class MediaLensView extends ItemView {
 	) {
 		const category = getCategory(name);
 		if (!category) {
-			new Notice("Unsupported file type");
+			new Notice(`Unsupported file type: ${name.split(".").pop() ?? "unknown"}`);
 			return;
 		}
 
@@ -511,7 +582,12 @@ export class MediaLensView extends ItemView {
 			this.setFile(slot, { name, size: buffer.byteLength, source, buffer, category, sections });
 		} catch (err) {
 			console.error("Media Lens: parse error", err);
-			new Notice("Failed to read file metadata");
+			const msg = err instanceof Error ? err.message : "Unknown error";
+			if (msg.includes("WASM")) {
+				new Notice("Failed to load media parser. Try reloading the plugin.");
+			} else {
+				new Notice(`Failed to parse "${name}": ${msg}`);
+			}
 		}
 	}
 
