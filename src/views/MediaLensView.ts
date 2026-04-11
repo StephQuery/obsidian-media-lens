@@ -280,7 +280,10 @@ export class MediaLensView extends ItemView {
 	}
 
 	private renderPreview(parent: HTMLElement, file: LoadedFile, slot: "primary" | "compare") {
-		const wrapper = parent.createDiv({ cls: "media-lens-preview" });
+		const isVideo = file.category === "video";
+		const wrapper = parent.createDiv({
+			cls: `media-lens-preview${isVideo ? " media-lens-preview-resizable" : ""}`,
+		});
 		const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
 		const mime = getMimeType(ext, file.category);
 
@@ -435,15 +438,20 @@ export class MediaLensView extends ItemView {
 
 		const fps = this.getFrameRate(this.primaryFile);
 		const frameDuration = 1 / fps;
-		const driftThreshold = frameDuration / 2; // correct if drift exceeds half a frame
-
-		// Drift correction loop — runs during playback
+		// Rate-based drift correction — nudge vidB's playback speed instead of hard seeking
 		let driftRaf: number | null = null;
 		const correctDrift = () => {
 			if (!vidA.paused && !vidB.paused) {
-				const drift = vidA.currentTime - vidB.currentTime;
-				if (Math.abs(drift) > driftThreshold) {
+				const drift = vidB.currentTime - vidA.currentTime;
+				if (Math.abs(drift) > 1) {
+					// Way off — hard seek
 					vidB.currentTime = vidA.currentTime;
+					vidB.playbackRate = 1;
+				} else if (Math.abs(drift) > frameDuration) {
+					// Nudge rate to catch up or slow down
+					vidB.playbackRate = drift > 0 ? 0.95 : 1.05;
+				} else {
+					vidB.playbackRate = 1;
 				}
 			}
 			driftRaf = requestAnimationFrame(correctDrift);
@@ -459,9 +467,14 @@ export class MediaLensView extends ItemView {
 				cancelAnimationFrame(driftRaf);
 				driftRaf = null;
 			}
+			vidB.playbackRate = 1;
 		};
 
-		vidA.addEventListener("play", startDriftCorrection);
+		vidA.addEventListener("play", () => {
+			vidB.currentTime = vidA.currentTime;
+			vidB.playbackRate = 1;
+			startDriftCorrection();
+		});
 		vidA.addEventListener("pause", stopDriftCorrection);
 		vidA.addEventListener("ended", stopDriftCorrection);
 		this.driftRafCleanup = stopDriftCorrection;
@@ -550,7 +563,7 @@ export class MediaLensView extends ItemView {
 			vidA.currentTime = t;
 			vidB.currentTime = t;
 			if (wasPlaying) {
-				void Promise.all([vidA.play(), vidB.play()]);
+				Promise.all([vidA.play(), vidB.play()]).catch(() => { /* playback blocked */ });
 			}
 		};
 		seekInput.addEventListener("mouseup", endScrub);
@@ -602,7 +615,7 @@ export class MediaLensView extends ItemView {
 		playPauseBtn.addEventListener("click", () => {
 			if (vidA.paused) {
 				vidB.currentTime = vidA.currentTime;
-				void Promise.all([vidA.play(), vidB.play()]);
+				Promise.all([vidA.play(), vidB.play()]).catch(() => { /* playback blocked */ });
 			} else {
 				vidA.pause();
 				vidB.pause();

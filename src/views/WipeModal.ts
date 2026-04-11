@@ -293,7 +293,7 @@ export class WipeModal extends Modal {
 		vidB.currentTime = vidA.currentTime;
 		vidB.playbackRate = 1;
 
-		void Promise.all([vidA.play(), vidB.play()]);
+		Promise.all([vidA.play(), vidB.play()]).catch(() => { /* playback blocked */ });
 
 		// Start rate-based drift correction
 		this.startSync(vidA, vidB);
