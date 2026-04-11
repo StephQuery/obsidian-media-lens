@@ -3,7 +3,7 @@ export type MediaCategory = "image" | "video" | "audio" | "subtitle";
 const IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "gif", "webp", "tif", "tiff", "bmp", "svg"]);
 const VIDEO_EXTS = new Set(["mp4", "m4v", "mkv", "avi", "mov", "webm"]);
 const AUDIO_EXTS = new Set(["mp3", "flac", "wav", "aac", "m4a", "ogg", "oga"]);
-const SUBTITLE_EXTS = new Set(["srt", "vtt", "ass", "ssa"]);
+const SUBTITLE_EXTS = new Set(["srt", "vtt", "ass", "ssa", "dfxp", "ttml", "scc"]);
 
 export function getCategory(filename: string): MediaCategory | null {
 	const ext = filename.split(".").pop()?.toLowerCase() ?? "";
@@ -60,11 +60,11 @@ export function getAcceptString(category: MediaCategory | null): string {
 			image: "image/*,.tif,.tiff,.bmp,.svg",
 			video: "video/*,.mkv",
 			audio: "audio/*,.flac,.ogg,.oga",
-			subtitle: ".srt,.vtt,.ass,.ssa",
+			subtitle: ".srt,.vtt,.ass,.ssa,.dfxp,.ttml,.scc",
 		};
 		return accepts[category];
 	}
-	return "image/*,video/*,audio/*,.mkv,.flac,.ogg,.oga,.srt,.vtt,.ass,.ssa,.tif,.tiff,.bmp,.svg";
+	return "image/*,video/*,audio/*,.mkv,.flac,.ogg,.oga,.srt,.vtt,.ass,.ssa,.dfxp,.ttml,.scc,.tif,.tiff,.bmp,.svg";
 }
 
 export function splitFileName(fileName: string): { baseName: string; ext: string } {

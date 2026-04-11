@@ -45,6 +45,9 @@ describe("getCategory", () => {
 		expect(getCategory("subs.vtt")).toBe("subtitle");
 		expect(getCategory("subs.ass")).toBe("subtitle");
 		expect(getCategory("subs.ssa")).toBe("subtitle");
+		expect(getCategory("subs.dfxp")).toBe("subtitle");
+		expect(getCategory("subs.ttml")).toBe("subtitle");
+		expect(getCategory("subs.scc")).toBe("subtitle");
 	});
 
 	it("returns null for unsupported files", () => {
