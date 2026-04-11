@@ -791,6 +791,9 @@ export class MediaLensView extends ItemView {
 			return btn;
 		};
 
+		this.renderMuteButton(controls, video);
+		controls.createDiv({ cls: "media-lens-transport-sep" });
+
 		const skipBack = makeBtn("rewind", "Back 5 seconds");
 		const frameBack = makeBtn("chevron-left", "Previous frame");
 		const stopBtn = makeBtn("square", "Stop");
