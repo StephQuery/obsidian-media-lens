@@ -289,7 +289,7 @@ export class MediaLensView extends ItemView {
 		});
 	}
 
-	private async handleSave() {
+	async handleSave() {
 		if (!this.primaryFile) return;
 
 		const settings = this.plugin.settings;

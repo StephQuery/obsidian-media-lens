@@ -44,6 +44,17 @@ export default class MediaLensPlugin extends Plugin {
 			},
 		});
 
+		this.addCommand({
+			id: "save-inspection",
+			name: "Save inspection to note",
+			callback: () => {
+				const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_MEDIA_LENS)[0];
+				if (leaf?.view instanceof MediaLensView) {
+					void leaf.view.handleSave();
+				}
+			},
+		});
+
 		this.addSettingTab(new MediaLensSettingTab(this.app, this));
 	}
 
