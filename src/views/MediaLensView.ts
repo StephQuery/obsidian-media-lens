@@ -129,22 +129,27 @@ export class MediaLensView extends ItemView {
 		if (this.primaryFile) {
 			container.createEl("hr", { cls: "media-lens-divider" });
 
-			const actionsBar = container.createDiv({ cls: "media-lens-actions" });
-
+			// Section 1: Transport
 			if (this.primaryVideo && this.compareVideo) {
 				if (this.syncEnabled) {
-					this.renderUnifiedTransport(actionsBar);
+					this.renderUnifiedTransport(container);
 				} else {
-					this.renderSyncToggle(actionsBar);
+					this.renderSyncToggle(container);
 				}
 			}
 
-			if (this.primaryFile && this.compareFile && this.primaryFile.category === "video") {
-				this.renderWipeButton(actionsBar);
+			// Section 2: Captures
+			if (this.primaryFile.category === "video") {
+				this.renderCaptureSection(container);
 			}
 
-			this.renderCaptureStrip(actionsBar);
-			this.renderSaveButton(actionsBar);
+			// Section 3: Actions (wipe + save on one row)
+			container.createEl("hr", { cls: "media-lens-divider" });
+			const actionRow = container.createDiv({ cls: "media-lens-action-row" });
+			if (this.primaryFile && this.compareFile && this.primaryFile.category === "video") {
+				this.renderWipeButton(actionRow);
+			}
+			this.renderSaveButton(actionRow);
 		}
 
 		if (this.primaryFile && this.compareFile) {
@@ -280,10 +285,7 @@ export class MediaLensView extends ItemView {
 	}
 
 	private renderPreview(parent: HTMLElement, file: LoadedFile, slot: "primary" | "compare") {
-		const isVideo = file.category === "video";
-		const wrapper = parent.createDiv({
-			cls: `media-lens-preview${isVideo ? " media-lens-preview-resizable" : ""}`,
-		});
+		const wrapper = parent.createDiv({ cls: "media-lens-preview" });
 		const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
 		const mime = getMimeType(ext, file.category);
 
@@ -321,11 +323,13 @@ export class MediaLensView extends ItemView {
 					cls: "media-lens-preview-video",
 					attr: videoAttrs,
 				});
-				if (slot === "primary") this.primaryVideo = video;
-				else this.compareVideo = video;
-				if (hideControls) {
-					this.renderMuteButton(wrapper, video);
+				if (slot === "primary") {
+					this.primaryVideo = video;
 				} else {
+					this.compareVideo = video;
+					if (hideControls) video.muted = true;
+				}
+				if (!hideControls) {
 					this.renderFrameStepControls(wrapper, video, file, slot);
 				}
 				break;
@@ -356,12 +360,13 @@ export class MediaLensView extends ItemView {
 	}
 
 
-	private renderMuteButton(parent: HTMLElement, video: HTMLVideoElement) {
+	private renderMuteButton(parent: HTMLElement, video: HTMLVideoElement, label?: string) {
 		const btn = parent.createEl("button", {
 			cls: "media-lens-btn-mute",
-			attr: { "aria-label": "Toggle mute" },
+			attr: { "aria-label": label ? `Mute ${label}` : "Toggle mute" },
 		});
 		const iconEl = btn.createSpan();
+		if (label) btn.createSpan({ text: label, cls: "media-lens-mute-label" });
 		const updateIcon = () => {
 			iconEl.empty();
 			setIcon(iconEl, video.muted ? "volume-x" : "volume-2");
@@ -371,6 +376,40 @@ export class MediaLensView extends ItemView {
 			video.muted = !video.muted;
 			updateIcon();
 		});
+	}
+
+	private renderCaptureSection(parent: HTMLElement) {
+		const section = parent.createDiv({ cls: "media-lens-capture-section" });
+
+		const header = section.createDiv({ cls: "media-lens-capture-section-header" });
+
+		const captureBtn = header.createEl("button", {
+			cls: "media-lens-btn media-lens-btn-secondary",
+		});
+		const capIcon = captureBtn.createSpan();
+		setIcon(capIcon, "camera");
+		captureBtn.createSpan({ text: "Capture" });
+
+		const countLabel = header.createSpan({ cls: "media-lens-capture-count" });
+
+		const updateCount = () => {
+			countLabel.textContent = this.captures.length > 0
+				? `${this.captures.length} frame${this.captures.length === 1 ? "" : "s"}`
+				: "";
+		};
+		updateCount();
+
+		captureBtn.addEventListener("click", () => {
+			if (this.syncEnabled && this.primaryVideo && this.compareVideo) {
+				void this.captureSyncedFrames(this.primaryVideo, this.compareVideo);
+			} else if (this.primaryVideo) {
+				void this.captureFrame(this.primaryVideo, "primary");
+			}
+			// Update count after capture (slight delay for async)
+			setTimeout(updateCount, 100);
+		});
+
+		this.renderCaptureStrip(section);
 	}
 
 	private renderWipeButton(parent: HTMLElement) {
@@ -569,38 +608,85 @@ export class MediaLensView extends ItemView {
 		seekInput.addEventListener("mouseup", endScrub);
 		seekInput.addEventListener("touchend", endScrub);
 
-		// Controls row: frame back, play/pause, frame forward, capture
+		// Controls row: [Mute A] [Mute B] | [◀◀] [◀ Frame] [⏹] [▶⏸] [Frame ▶] [▶▶] | [📷] | fps
 		const controls = bar.createDiv({ cls: "media-lens-transport-controls" });
 
+		// Mute buttons
+		this.renderMuteButton(controls, vidA, "A");
+		this.renderMuteButton(controls, vidB, "B");
+
+		controls.createDiv({ cls: "media-lens-transport-sep" });
+
+		// Skip back 10s
+		const skipBack = controls.createEl("button", {
+			cls: "media-lens-btn media-lens-btn-secondary media-lens-frame-btn",
+			attr: { "aria-label": "Back 10 seconds" },
+		});
+		const sbIcon = skipBack.createSpan();
+		setIcon(sbIcon, "rewind");
+
+		// Frame back
 		const frameBack = controls.createEl("button", {
 			cls: "media-lens-btn media-lens-btn-secondary media-lens-frame-btn",
 			attr: { "aria-label": "Previous frame" },
 		});
 		const fbIcon = frameBack.createSpan();
 		setIcon(fbIcon, "chevron-left");
-		frameBack.createSpan({ text: "Frame" });
 
+		// Stop (reset to 0)
+		const stopBtn = controls.createEl("button", {
+			cls: "media-lens-btn media-lens-btn-secondary media-lens-frame-btn",
+			attr: { "aria-label": "Stop" },
+		});
+		const stopIcon = stopBtn.createSpan();
+		setIcon(stopIcon, "square");
+
+		// Play/pause
 		const playPauseBtn = controls.createEl("button", {
-			cls: "media-lens-btn media-lens-btn-secondary",
+			cls: "media-lens-btn media-lens-btn-secondary media-lens-transport-play",
 			attr: { "aria-label": "Play or pause" },
 		});
 		const ppIcon = playPauseBtn.createSpan();
 		setIcon(ppIcon, "play");
 
+		// Frame forward
 		const frameFwd = controls.createEl("button", {
 			cls: "media-lens-btn media-lens-btn-secondary media-lens-frame-btn",
 			attr: { "aria-label": "Next frame" },
 		});
-		frameFwd.createSpan({ text: "Frame" });
 		const ffIcon = frameFwd.createSpan();
 		setIcon(ffIcon, "chevron-right");
 
-		const captureBtn = controls.createEl("button", {
+		// Skip forward 10s
+		const skipFwd = controls.createEl("button", {
 			cls: "media-lens-btn media-lens-btn-secondary media-lens-frame-btn",
-			attr: { "aria-label": "Capture frames" },
+			attr: { "aria-label": "Forward 10 seconds" },
 		});
-		const capIcon = captureBtn.createSpan();
-		setIcon(capIcon, "camera");
+		const sfIcon = skipFwd.createSpan();
+		setIcon(sfIcon, "fast-forward");
+
+		controls.createDiv({ cls: "media-lens-transport-sep" });
+
+		controls.createDiv({ cls: "media-lens-transport-sep" });
+
+		// Step size selector
+		let stepFrames = 1;
+		const stepGroup = controls.createDiv({ cls: "media-lens-step-group" });
+		const stepSizes = [1, 5, 10];
+		const stepButtons: HTMLElement[] = [];
+		for (const size of stepSizes) {
+			const sb = stepGroup.createEl("button", {
+				text: String(size),
+				cls: `media-lens-step-btn${size === 1 ? " media-lens-step-btn--active" : ""}`,
+			});
+			sb.addEventListener("click", () => {
+				stepFrames = size;
+				for (const b of stepButtons) b.removeClass("media-lens-step-btn--active");
+				sb.addClass("media-lens-step-btn--active");
+			});
+			stepButtons.push(sb);
+		}
+		stepGroup.createSpan({ text: "f", cls: "media-lens-step-unit" });
 
 		controls.createSpan({ text: `${fps} fps`, cls: "media-lens-frame-fps" });
 
@@ -623,7 +709,15 @@ export class MediaLensView extends ItemView {
 			}
 		});
 
-		// Frame stepping
+		// Stop — pause and reset to beginning
+		stopBtn.addEventListener("click", () => {
+			vidA.pause();
+			vidB.pause();
+			vidA.currentTime = 0;
+			vidB.currentTime = 0;
+		});
+
+		// Frame stepping & skip
 		const step = (delta: number) => {
 			vidA.pause();
 			vidB.pause();
@@ -631,13 +725,11 @@ export class MediaLensView extends ItemView {
 			vidA.currentTime = t;
 			vidB.currentTime = t;
 		};
-		frameBack.addEventListener("click", () => step(-frameDuration));
-		frameFwd.addEventListener("click", () => step(frameDuration));
+		skipBack.addEventListener("click", () => step(-10));
+		frameBack.addEventListener("click", () => step(-frameDuration * stepFrames));
+		frameFwd.addEventListener("click", () => step(frameDuration * stepFrames));
+		skipFwd.addEventListener("click", () => step(10));
 
-		// Capture both frames at the exact same time
-		captureBtn.addEventListener("click", () => {
-			void this.captureSyncedFrames(vidA, vidB);
-		});
 	}
 
 
