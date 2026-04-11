@@ -138,18 +138,19 @@ export class MediaLensView extends ItemView {
 				}
 			}
 
-			// Section 2: Captures
-			if (this.primaryFile.category === "video") {
-				this.renderCaptureSection(container);
-			}
-
-			// Section 3: Actions (wipe + save on one row)
+			// Section 2: Actions (capture + wipe + save)
 			container.createEl("hr", { cls: "media-lens-divider" });
 			const actionRow = container.createDiv({ cls: "media-lens-action-row" });
+			if (this.primaryFile.category === "video") {
+				this.renderCaptureButton(actionRow);
+			}
 			if (this.primaryFile && this.compareFile && this.primaryFile.category === "video") {
 				this.renderWipeButton(actionRow);
 			}
 			this.renderSaveButton(actionRow);
+
+			// Capture strip (thumbnails)
+			this.renderCaptureStrip(container);
 		}
 
 		if (this.primaryFile && this.compareFile) {
@@ -378,38 +379,22 @@ export class MediaLensView extends ItemView {
 		});
 	}
 
-	private renderCaptureSection(parent: HTMLElement) {
-		const section = parent.createDiv({ cls: "media-lens-capture-section" });
-
-		const header = section.createDiv({ cls: "media-lens-capture-section-header" });
-
-		const captureBtn = header.createEl("button", {
-			cls: "media-lens-btn media-lens-btn-secondary",
+	private renderCaptureButton(parent: HTMLElement) {
+		const btn = parent.createEl("button", {
+			cls: "media-lens-btn media-lens-btn-save",
 		});
-		const capIcon = captureBtn.createSpan();
-		setIcon(capIcon, "camera");
-		captureBtn.createSpan({ text: "Capture" });
+		const iconEl = btn.createSpan();
+		setIcon(iconEl, "camera");
+		btn.createSpan({ text: "Capture" });
 
-		const countLabel = header.createSpan({ cls: "media-lens-capture-count" });
-
-		const updateCount = () => {
-			countLabel.textContent = this.captures.length > 0
-				? `${this.captures.length} frame${this.captures.length === 1 ? "" : "s"}`
-				: "";
-		};
-		updateCount();
-
-		captureBtn.addEventListener("click", () => {
+		btn.addEventListener("click", () => {
 			if (this.syncEnabled && this.primaryVideo && this.compareVideo) {
 				void this.captureSyncedFrames(this.primaryVideo, this.compareVideo);
 			} else if (this.primaryVideo) {
 				void this.captureFrame(this.primaryVideo, "primary");
 			}
-			// Update count after capture (slight delay for async)
-			setTimeout(updateCount, 100);
+			this.updateCaptureStrip();
 		});
-
-		this.renderCaptureStrip(section);
 	}
 
 	private renderWipeButton(parent: HTMLElement) {
@@ -417,13 +402,12 @@ export class MediaLensView extends ItemView {
 		const fileA = this.primaryFile;
 		const fileB = this.compareFile;
 
-		const wrapper = parent.createDiv({ cls: "media-lens-save-bar" });
-		const btn = wrapper.createEl("button", {
+		const btn = parent.createEl("button", {
 			cls: "media-lens-btn media-lens-btn-save",
 		});
 		const iconEl = btn.createSpan();
 		setIcon(iconEl, "split");
-		btn.createSpan({ text: "Wipe comparison" });
+		btn.createSpan({ text: "Wipe" });
 
 		btn.addEventListener("click", () => {
 			openWipeModal(
@@ -444,12 +428,12 @@ export class MediaLensView extends ItemView {
 	}
 
 	private renderSaveButton(parent: HTMLElement) {
-		const wrapper = parent.createDiv({ cls: "media-lens-save-bar" });
-		const label = "Save as note";
-		const btn = wrapper.createEl("button", {
-			text: label,
+		const btn = parent.createEl("button", {
 			cls: "media-lens-btn media-lens-btn-save",
 		});
+		const iconEl = btn.createSpan();
+		setIcon(iconEl, "save");
+		btn.createSpan({ text: "Save as note" });
 		btn.addEventListener("click", () => {
 			void this.handleSave();
 		});
@@ -543,11 +527,18 @@ export class MediaLensView extends ItemView {
 		const durationLabel = seekRow.createSpan({ cls: "media-lens-transport-time" });
 
 		const updateDuration = () => {
-			const dur = vidA.duration || 0;
-			seekInput.max = String(dur);
-			durationLabel.textContent = this.formatTimestamp(dur);
+			const durA = vidA.duration || 0;
+			const durB = vidB.duration || 0;
+			const maxDur = Math.max(durA, durB);
+			seekInput.max = String(maxDur);
+			if (durA > 0 && durB > 0 && Math.abs(durA - durB) > 0.5) {
+				durationLabel.textContent = `A ${this.formatTimestamp(durA)} / B ${this.formatTimestamp(durB)}`;
+			} else {
+				durationLabel.textContent = this.formatTimestamp(maxDur);
+			}
 		};
 		vidA.addEventListener("loadedmetadata", updateDuration);
+		vidB.addEventListener("loadedmetadata", updateDuration);
 		updateDuration();
 
 		let scrubbing = false;
@@ -729,51 +720,118 @@ export class MediaLensView extends ItemView {
 		parent: HTMLElement,
 		video: HTMLVideoElement,
 		file: LoadedFile,
-		slot: "primary" | "compare"
+		_slot: "primary" | "compare"
 	) {
 		const fps = this.getFrameRate(file);
 		const frameDuration = 1 / fps;
 
-		const bar = parent.createDiv({ cls: "media-lens-frame-step" });
+		const transport = parent.createDiv({ cls: "media-lens-transport" });
 
-		const backBtn = bar.createEl("button", {
-			cls: "media-lens-btn media-lens-btn-secondary media-lens-frame-btn",
-			attr: { "aria-label": "Previous frame" },
+		// Seek bar
+		const seekRow = transport.createDiv({ cls: "media-lens-transport-seek" });
+		const timeLabel = seekRow.createSpan({ cls: "media-lens-transport-time" });
+		const seekInput = seekRow.createEl("input", {
+			cls: "media-lens-transport-range",
+			attr: { type: "range", min: "0", step: "0.001", value: "0" },
 		});
-		const backIcon = backBtn.createSpan();
-		setIcon(backIcon, "chevron-left");
-		backBtn.createSpan({ text: "Frame" });
+		const durationLabel = seekRow.createSpan({ cls: "media-lens-transport-time" });
 
-		bar.createSpan({
-			text: `${fps} fps`,
-			cls: "media-lens-frame-fps",
+		const updateDuration = () => {
+			const dur = video.duration || 0;
+			seekInput.max = String(dur);
+			durationLabel.textContent = this.formatTimestamp(dur);
+		};
+		video.addEventListener("loadedmetadata", updateDuration);
+		updateDuration();
+
+		let scrubbing = false;
+		let wasPlaying = false;
+
+		const updateTime = () => {
+			if (scrubbing) return;
+			seekInput.value = String(video.currentTime);
+			timeLabel.textContent = this.formatTimestamp(video.currentTime);
+		};
+		video.addEventListener("timeupdate", updateTime);
+		updateTime();
+
+		seekInput.addEventListener("mousedown", () => {
+			scrubbing = true;
+			wasPlaying = !video.paused;
+			video.pause();
 		});
-
-		const fwdBtn = bar.createEl("button", {
-			cls: "media-lens-btn media-lens-btn-secondary media-lens-frame-btn",
-			attr: { "aria-label": "Next frame" },
+		seekInput.addEventListener("touchstart", () => {
+			scrubbing = true;
+			wasPlaying = !video.paused;
+			video.pause();
 		});
-		fwdBtn.createSpan({ text: "Frame" });
-		const fwdIcon = fwdBtn.createSpan();
-		setIcon(fwdIcon, "chevron-right");
+		seekInput.addEventListener("input", () => {
+			const t = parseFloat(seekInput.value);
+			video.currentTime = t;
+			timeLabel.textContent = this.formatTimestamp(t);
+		});
+		const endScrub = () => {
+			if (!scrubbing) return;
+			scrubbing = false;
+			if (wasPlaying) video.play().catch(() => { /* blocked */ });
+		};
+		seekInput.addEventListener("mouseup", endScrub);
+		seekInput.addEventListener("touchend", endScrub);
 
-		const step = (delta: number) => {
-			video.currentTime = Math.max(0, video.currentTime + delta);
+		// Controls row
+		const controls = transport.createDiv({ cls: "media-lens-transport-controls" });
+
+		const makeBtn = (icon: string, label: string) => {
+			const btn = controls.createEl("button", {
+				cls: "media-lens-btn media-lens-btn-secondary media-lens-frame-btn",
+				attr: { "aria-label": label },
+			});
+			const el = btn.createSpan();
+			setIcon(el, icon);
+			return btn;
 		};
 
-		const captureBtn = bar.createEl("button", {
-			cls: "media-lens-btn media-lens-btn-secondary media-lens-frame-btn",
-			attr: { "aria-label": "Capture frame" },
-		});
-		const captureIcon = captureBtn.createSpan();
-		setIcon(captureIcon, "camera");
+		const skipBack = makeBtn("rewind", "Back 5 seconds");
+		const frameBack = makeBtn("chevron-left", "Previous frame");
+		const stopBtn = makeBtn("square", "Stop");
+		const playPauseBtn = makeBtn("play", "Play or pause");
+		const ppIcon = playPauseBtn.querySelector("span") as HTMLElement;
+		const frameFwd = makeBtn("chevron-right", "Next frame");
+		const skipFwd = makeBtn("fast-forward", "Forward 5 seconds");
 
-		backBtn.addEventListener("click", () => step(-frameDuration));
-		fwdBtn.addEventListener("click", () => step(frameDuration));
-		captureBtn.addEventListener("click", () => {
-			void this.captureFrame(video, slot);
+		controls.createDiv({ cls: "media-lens-transport-sep" });
+		controls.createSpan({ text: `${fps} fps`, cls: "media-lens-frame-fps" });
+
+		const updatePlayIcon = () => {
+			if (ppIcon) {
+				ppIcon.empty();
+				setIcon(ppIcon, video.paused ? "play" : "pause");
+			}
+		};
+		video.addEventListener("play", updatePlayIcon);
+		video.addEventListener("pause", updatePlayIcon);
+
+		playPauseBtn.addEventListener("click", () => {
+			if (video.paused) {
+				video.play().catch(() => { /* blocked */ });
+			} else {
+				video.pause();
+			}
 		});
 
+		stopBtn.addEventListener("click", () => {
+			video.pause();
+			video.currentTime = 0;
+		});
+
+		const step = (delta: number) => {
+			video.pause();
+			video.currentTime = Math.max(0, video.currentTime + delta);
+		};
+		skipBack.addEventListener("click", () => step(-5));
+		frameBack.addEventListener("click", () => step(-frameDuration));
+		frameFwd.addEventListener("click", () => step(frameDuration));
+		skipFwd.addEventListener("click", () => step(5));
 	}
 
 	private waitForSeek(video: HTMLVideoElement): Promise<void> {

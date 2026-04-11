@@ -206,32 +206,12 @@
 	gap: var(--size-4-2);
 }
 
-/* ── Capture Section ── */
-
-.media-lens-capture-section {
-	display: flex;
-	flex-direction: column;
-	gap: var(--size-4-1);
-}
-
-.media-lens-capture-section-header {
-	display: flex;
-	align-items: center;
-	gap: var(--size-4-2);
-}
-
-.media-lens-capture-count {
-	font-size: var(--font-ui-smaller);
-	color: var(--text-faint);
-}
-
-/* ── Save Button ── */
-
-.media-lens-save-bar {
-	display: flex;
-}
+/* ── Action Buttons ── */
 
 .media-lens-btn-save {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-1);
 	padding: var(--size-2-2) var(--size-4-3);
 	font-size: var(--font-ui-smaller);
 	border: 1px solid var(--background-modifier-border);
