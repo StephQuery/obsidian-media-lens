@@ -1,7 +1,7 @@
 {
 	"id": "media-lens",
 	"name": "Media Lens",
-	"version": "0.1.0",
+	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
 	"description": "Inspect and compare metadata for images, video, audio, and subtitle files directly in Obsidian.",
 	"author": "Glenn Gonda",
