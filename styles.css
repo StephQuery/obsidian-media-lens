@@ -1,8 +1,143 @@
-/*
+/* ── Container ── */
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+.media-lens-container {
+	padding: var(--size-4-3);
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-3);
+}
 
-If your plugin does not need CSS, delete this file.
+/* ── Drop Zone ── */
 
-*/
+.media-lens-drop-zone {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: var(--size-4-2);
+	padding: var(--size-4-4) var(--size-4-3);
+	border: 2px dashed var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	cursor: default;
+	transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.media-lens-drop-zone--over {
+	border-color: var(--interactive-accent);
+	background-color: var(--background-modifier-hover);
+}
+
+.media-lens-drop-icon {
+	color: var(--text-faint);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.media-lens-drop-label {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	text-align: center;
+}
+
+.media-lens-drop-actions {
+	display: flex;
+	gap: var(--size-4-2);
+}
+
+/* ── Buttons ── */
+
+.media-lens-btn {
+	font-size: var(--font-ui-smaller);
+	padding: var(--size-2-2) var(--size-4-2);
+	border-radius: var(--radius-s);
+	cursor: pointer;
+	border: none;
+	transition: background-color 100ms ease;
+}
+
+.media-lens-btn-secondary {
+	color: var(--text-muted);
+	background: var(--background-modifier-hover);
+}
+
+.media-lens-btn-secondary:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-border);
+}
+
+/* ── File Header (loaded state) ── */
+
+.media-lens-file-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: var(--size-4-2) var(--size-4-3);
+	background: var(--background-secondary);
+	border-radius: var(--radius-m);
+}
+
+.media-lens-file-info {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.media-lens-file-name {
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-semibold);
+	color: var(--text-normal);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.media-lens-file-size {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+}
+
+.media-lens-btn-clear {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	border-radius: var(--radius-s);
+	background: transparent;
+	color: var(--text-faint);
+	cursor: pointer;
+	transition: color 100ms ease, background-color 100ms ease;
+}
+
+.media-lens-btn-clear:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-hover);
+}
+
+/* ── Hint ── */
+
+.media-lens-hint {
+	text-align: center;
+	padding: var(--size-4-2) 0;
+}
+
+.media-lens-hint span {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+}
+
+/* ── Metadata placeholder ── */
+
+.media-lens-metadata {
+	padding: var(--size-4-2) 0;
+}
+
+.media-lens-muted {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
