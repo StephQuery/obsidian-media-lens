@@ -124,6 +124,46 @@
 	background: var(--background-modifier-hover);
 }
 
+/* ── Media Preview ── */
+
+.media-lens-preview {
+	border-radius: var(--radius-m);
+}
+
+.media-lens-preview-img {
+	width: 100%;
+	max-height: 200px;
+	object-fit: contain;
+	display: block;
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+}
+
+.media-lens-preview-video {
+	width: 100%;
+	max-height: 200px;
+	display: block;
+	border-radius: var(--radius-m);
+}
+
+.media-lens-preview-audio {
+	width: 100%;
+	display: block;
+}
+
+.media-lens-preview-text {
+	max-height: 120px;
+	overflow: auto;
+	padding: var(--size-4-2);
+	background: var(--background-secondary);
+	border-radius: var(--radius-m);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	white-space: pre-wrap;
+	word-break: break-word;
+	margin: 0;
+}
+
 /* ── Utility ── */
 
 .media-lens-hidden {

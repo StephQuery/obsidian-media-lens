@@ -26,6 +26,7 @@ export class MediaLensView extends ItemView {
 	plugin: MediaLensPlugin;
 	primaryFile: LoadedFile | null = null;
 	compareFile: LoadedFile | null = null;
+	private objectUrls: string[] = [];
 
 	constructor(leaf: WorkspaceLeaf, plugin: MediaLensPlugin) {
 		super(leaf);
@@ -49,7 +50,21 @@ export class MediaLensView extends ItemView {
 	}
 
 	async onClose() {
+		this.revokeObjectUrls();
 		this.contentEl.empty();
+	}
+
+	private revokeObjectUrls() {
+		for (const url of this.objectUrls) {
+			URL.revokeObjectURL(url);
+		}
+		this.objectUrls = [];
+	}
+
+	private createObjectUrl(buffer: ArrayBuffer, mimeType: string): string {
+		const url = URL.createObjectURL(new Blob([buffer], { type: mimeType }));
+		this.objectUrls.push(url);
+		return url;
 	}
 
 	clearPrimary() {
@@ -69,12 +84,19 @@ export class MediaLensView extends ItemView {
 	}
 
 	private render() {
+		this.revokeObjectUrls();
 		const container = this.contentEl;
 		container.empty();
 		container.addClass("media-lens-container");
 
 		this.renderDropZone(container, "primary");
+		if (this.primaryFile) {
+			this.renderPreview(container, this.primaryFile);
+		}
 		this.renderDropZone(container, "compare");
+		if (this.compareFile) {
+			this.renderPreview(container, this.compareFile);
+		}
 
 		if (this.primaryFile && this.compareFile) {
 			this.renderComparison(container, this.primaryFile, this.compareFile);
@@ -182,6 +204,85 @@ export class MediaLensView extends ItemView {
 			if (slot === "primary") this.clearPrimary();
 			else this.clearCompare();
 		});
+	}
+
+	private renderPreview(parent: HTMLElement, file: LoadedFile) {
+		const wrapper = parent.createDiv({ cls: "media-lens-preview" });
+		const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+		const mime = this.getMimeType(ext, file.category);
+
+		switch (file.category) {
+			case "image": {
+				if (ext === "svg") {
+					const url = this.createObjectUrl(file.buffer, "image/svg+xml");
+					const img = wrapper.createEl("img", {
+						cls: "media-lens-preview-img",
+						attr: { src: url, alt: file.name },
+					});
+					img.addEventListener("error", () => {
+						wrapper.empty();
+						wrapper.createEl("span", { text: "Preview unavailable", cls: "media-lens-muted" });
+					});
+				} else {
+					const url = this.createObjectUrl(file.buffer, mime);
+					const img = wrapper.createEl("img", {
+						cls: "media-lens-preview-img",
+						attr: { src: url, alt: file.name },
+					});
+					img.addEventListener("error", () => {
+						wrapper.empty();
+						wrapper.createEl("span", { text: "Preview unavailable", cls: "media-lens-muted" });
+					});
+				}
+				break;
+			}
+			case "video": {
+				const url = this.createObjectUrl(file.buffer, mime);
+				wrapper.createEl("video", {
+					cls: "media-lens-preview-video",
+					attr: { src: url, controls: "true", preload: "metadata" },
+				});
+				break;
+			}
+			case "audio": {
+				const url = this.createObjectUrl(file.buffer, mime);
+				wrapper.createEl("audio", {
+					cls: "media-lens-preview-audio",
+					attr: { src: url, controls: "true", preload: "metadata" },
+				});
+				break;
+			}
+			case "subtitle": {
+				// Show first few lines of subtitle text
+				try {
+					const text = new TextDecoder().decode(file.buffer);
+					const preview = text.slice(0, 500) + (text.length > 500 ? "\n..." : "");
+					wrapper.createEl("pre", {
+						text: preview,
+						cls: "media-lens-preview-text",
+					});
+				} catch {
+					wrapper.createEl("span", { text: "Preview unavailable", cls: "media-lens-muted" });
+				}
+				break;
+			}
+		}
+	}
+
+	private getMimeType(ext: string, category: MediaCategory): string {
+		const mimeMap: Record<string, string> = {
+			jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
+			gif: "image/gif", webp: "image/webp", bmp: "image/bmp",
+			tif: "image/tiff", tiff: "image/tiff", svg: "image/svg+xml",
+			mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime",
+			mkv: "video/x-matroska", avi: "video/x-msvideo", webm: "video/webm",
+			mp3: "audio/mpeg", flac: "audio/flac", wav: "audio/wav",
+			aac: "audio/aac", m4a: "audio/mp4", ogg: "audio/ogg", oga: "audio/ogg",
+		};
+		const fallback: Record<MediaCategory, string> = {
+			image: "image/png", video: "video/mp4", audio: "audio/mpeg", subtitle: "text/plain",
+		};
+		return mimeMap[ext] ?? fallback[category];
 	}
 
 	private renderSections(parent: HTMLElement, sections: MetadataSection[]) {
