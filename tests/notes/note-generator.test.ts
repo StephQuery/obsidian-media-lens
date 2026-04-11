@@ -69,6 +69,15 @@ describe("generateSingleNote", () => {
 		expect(note).toContain("![[media-lens/assets/clip.mp4]]");
 	});
 
+	it("uses vaultPath for external file when provided (e.g. after rename)", () => {
+		const note = generateSingleNote(
+			{ name: "clip.mp4", source: "external", category: "video", vaultPath: "media-lens/assets/clip (2).mp4" },
+			testSections,
+			"media-lens/assets"
+		);
+		expect(note).toContain("![[media-lens/assets/clip (2).mp4]]");
+	});
+
 	it("renders metadata in sections with headers", () => {
 		const note = generateSingleNote(
 			{ name: "clip.mp4", source: "vault", category: "video", vaultPath: "clip.mp4" },

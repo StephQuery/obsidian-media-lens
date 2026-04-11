@@ -90,9 +90,7 @@ function buildComparisonSections(
 }
 
 function embedPath(file: NoteFile, assetsDir: string): string {
-	if (file.source === "vault" && file.vaultPath) {
-		return file.vaultPath;
-	}
+	if (file.vaultPath) return file.vaultPath;
 	return `${assetsDir}/${file.name}`;
 }
 

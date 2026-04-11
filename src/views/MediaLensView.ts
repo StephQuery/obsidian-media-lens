@@ -20,6 +20,7 @@ export const VIEW_TYPE_MEDIA_LENS = "media-lens-view";
 
 interface LoadedFile {
 	name: string;
+	path: string;
 	size: number;
 	source: "vault" | "external";
 	buffer: ArrayBuffer;
@@ -32,6 +33,7 @@ export class MediaLensView extends ItemView {
 	primaryFile: LoadedFile | null = null;
 	compareFile: LoadedFile | null = null;
 	private objectUrls: string[] = [];
+	private captureStripUrls: string[] = [];
 	private syncEnabled = false;
 	private primaryVideo: HTMLVideoElement | null = null;
 	private compareVideo: HTMLVideoElement | null = null;
@@ -70,10 +72,10 @@ export class MediaLensView extends ItemView {
 	}
 
 	private revokeObjectUrls() {
-		for (const url of this.objectUrls) {
-			URL.revokeObjectURL(url);
-		}
+		for (const url of this.objectUrls) URL.revokeObjectURL(url);
 		this.objectUrls = [];
+		for (const url of this.captureStripUrls) URL.revokeObjectURL(url);
+		this.captureStripUrls = [];
 	}
 
 	private createObjectUrl(buffer: ArrayBuffer, mimeType: string): string {
@@ -866,6 +868,10 @@ export class MediaLensView extends ItemView {
 	}
 
 	private async captureFrame(video: HTMLVideoElement, slot: "primary" | "compare") {
+		if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
+			new Notice("Video not ready for capture");
+			return;
+		}
 		const canvas = document.createElement("canvas");
 		canvas.width = video.videoWidth;
 		canvas.height = video.videoHeight;
@@ -899,6 +905,10 @@ export class MediaLensView extends ItemView {
 	}
 
 	private fillCaptureStrip(strip: HTMLElement) {
+		// Revoke old capture thumbnail URLs
+		for (const url of this.captureStripUrls) URL.revokeObjectURL(url);
+		this.captureStripUrls = [];
+
 		strip.empty();
 
 		if (this.captures.length === 0) {
@@ -914,7 +924,7 @@ export class MediaLensView extends ItemView {
 			const item = list.createDiv({ cls: "media-lens-capture-item" });
 
 			const url = URL.createObjectURL(cap.blob);
-			this.objectUrls.push(url);
+			this.captureStripUrls.push(url);
 			item.createEl("img", {
 				cls: "media-lens-capture-thumb",
 				attr: { src: url, alt: cap.label },
@@ -983,8 +993,8 @@ export class MediaLensView extends ItemView {
 				savedCaptures.push({ vaultPath, label: cap.label, fileName, player });
 			}
 
-			// Copy external files into vault so embeds work (only if no captures)
-			let primaryPath = this.primaryFile.name;
+			// Copy external files into vault so embeds work
+			let primaryPath = this.primaryFile.path;
 			if (this.primaryFile.source === "external") {
 				primaryPath = await copyExternalFileToVault(
 					this.app, this.primaryFile.buffer, this.primaryFile.name, settings
@@ -994,7 +1004,7 @@ export class MediaLensView extends ItemView {
 			let content: string;
 
 			if (this.compareFile) {
-				let comparePath = this.compareFile.name;
+				let comparePath = this.compareFile.path;
 				if (this.compareFile.source === "external") {
 					comparePath = await copyExternalFileToVault(
 						this.app, this.compareFile.buffer, this.compareFile.name, settings
@@ -1138,7 +1148,7 @@ export class MediaLensView extends ItemView {
 	private async handleDrop(e: DragEvent, slot: "primary" | "compare") {
 		const droppedFile = e.dataTransfer?.files?.[0];
 		if (droppedFile) {
-			await this.loadFile(droppedFile.name, await droppedFile.arrayBuffer(), "external", slot);
+			await this.loadFile(droppedFile.name, droppedFile.name, await droppedFile.arrayBuffer(), "external", slot);
 			return;
 		}
 
@@ -1147,7 +1157,7 @@ export class MediaLensView extends ItemView {
 			const abstractFile = this.app.vault.getAbstractFileByPath(path);
 			if (abstractFile instanceof TFile) {
 				const buffer = await this.app.vault.readBinary(abstractFile);
-				await this.loadFile(abstractFile.name, buffer, "vault", slot);
+				await this.loadFile(abstractFile.name, abstractFile.path, buffer, "vault", slot);
 			}
 		}
 	}
@@ -1167,7 +1177,7 @@ export class MediaLensView extends ItemView {
 		input.addEventListener("change", () => {
 			const file = input.files?.[0];
 			if (file) {
-				void this.loadFile(file.name, file.arrayBuffer(), "external", slot);
+				void this.loadFile(file.name, file.name, file.arrayBuffer(), "external", slot);
 			}
 			cleanup();
 		});
@@ -1180,6 +1190,7 @@ export class MediaLensView extends ItemView {
 
 	private async loadFile(
 		name: string,
+		path: string,
 		bufferOrPromise: ArrayBuffer | Promise<ArrayBuffer>,
 		source: "vault" | "external",
 		slot: "primary" | "compare"
@@ -1195,7 +1206,7 @@ export class MediaLensView extends ItemView {
 			const wasmUrl = this.plugin.getWasmUrl();
 			const result = await parseBuffer(buffer, wasmUrl);
 			const sections = normalizeTracks(result);
-			this.setFile(slot, { name, size: buffer.byteLength, source, buffer, category, sections });
+			this.setFile(slot, { name, path, size: buffer.byteLength, source, buffer, category, sections });
 		} catch (err) {
 			console.error("Media Lens: parse error", err);
 			const msg = err instanceof Error ? err.message : "Unknown error";

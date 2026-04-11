@@ -1,10 +1,13 @@
-import { normalizePath, type App, type TFile } from "obsidian";
+import { normalizePath, TFolder, type App, type TFile } from "obsidian";
 import type { MediaLensSettings } from "../settings";
 import { splitFileName } from "../utils/media";
 
 async function ensureDirectory(app: App, path: string): Promise<void> {
 	const normalized = normalizePath(path);
 	const existing = app.vault.getAbstractFileByPath(normalized);
+	if (existing && !(existing instanceof TFolder)) {
+		throw new Error(`"${normalized}" exists but is not a folder`);
+	}
 	if (!existing) {
 		try {
 			await app.vault.createFolder(normalized);
