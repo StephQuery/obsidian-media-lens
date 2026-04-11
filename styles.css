@@ -350,10 +350,6 @@
 	padding: var(--size-2-2) 0;
 }
 
-.media-lens-frame-step--hidden {
-	display: none;
-}
-
 .media-lens-frame-btn {
 	display: flex;
 	align-items: center;
@@ -446,6 +442,13 @@
 
 .media-lens-hidden {
 	display: none;
+}
+
+/* ── Muted Text ── */
+
+.media-lens-muted {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
 }
 
 /* ── Hint ── */

@@ -162,6 +162,64 @@ describe("generateComparisonNote", () => {
 	});
 });
 
+describe("generateSingleNote with captures", () => {
+	const captures = [
+		{ vaultPath: "media-lens/assets/clip_1-23-456.png", label: "1:23.456", fileName: "clip.mp4" },
+	];
+
+	it("includes video embed and captured frames", () => {
+		const note = generateSingleNote(
+			{ name: "clip.mp4", source: "vault", category: "video", vaultPath: "clip.mp4" },
+			testSections,
+			"media-lens/assets",
+			captures
+		);
+		expect(note).toContain("![[clip.mp4]]");
+		expect(note).toContain("### Captured Frames");
+		expect(note).toContain("![[media-lens/assets/clip_1-23-456.png]]");
+		expect(note).toContain("@ 1:23.456");
+	});
+});
+
+describe("generateComparisonNote with captures", () => {
+	const sectionsB: MetadataSection[] = [
+		{ id: "general", name: "General", defaultExpanded: true, fields: [{ key: "Format", value: "MPEG-4" }] },
+	];
+
+	const captures = [
+		{ vaultPath: "media-lens/assets/orig_1-23-456.png", label: "1:23.456", fileName: "original.mp4", player: "A" as const },
+		{ vaultPath: "media-lens/assets/comp_1-23-456.png", label: "1:23.456", fileName: "compressed.mp4", player: "B" as const },
+	];
+
+	it("includes both video embeds and labeled captures", () => {
+		const note = generateComparisonNote(
+			{ name: "original.mp4", source: "vault", category: "video", vaultPath: "original.mp4" },
+			{ name: "compressed.mp4", source: "vault", category: "video", vaultPath: "compressed.mp4" },
+			testSections, sectionsB, "media-lens/assets", captures
+		);
+		expect(note).toContain("![[original.mp4]]");
+		expect(note).toContain("![[compressed.mp4]]");
+		expect(note).toContain("### Captured Frames");
+		expect(note).toContain("**A: original.mp4** @ 1:23.456");
+		expect(note).toContain("**B: compressed.mp4** @ 1:23.456");
+	});
+
+	it("omits player label when no player specified", () => {
+		const unlabeled = [
+			{ vaultPath: "media-lens/assets/clip_1-23-456.png", label: "1:23.456", fileName: "clip.mp4" },
+		];
+		const note = generateSingleNote(
+			{ name: "clip.mp4", source: "vault", category: "video", vaultPath: "clip.mp4" },
+			testSections,
+			"media-lens/assets",
+			unlabeled
+		);
+		expect(note).toContain("**clip.mp4** @ 1:23.456");
+		expect(note).not.toContain("A:");
+		expect(note).not.toContain("B:");
+	});
+});
+
 describe("generateNoteName", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();

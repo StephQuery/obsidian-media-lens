@@ -2,31 +2,19 @@
 
 Inspect and compare metadata for images, video, audio, and subtitle files directly in Obsidian.
 
-> **Status:** Active development. Metadata inspection, comparison, and save-to-note are functional.
-
 ## Features
 
 - **Sidebar panel** with two drop zones — inspect a single file or compare two files side by side
 - **Broad format support** — MP4, MOV, MKV, AVI, WebM, JPEG, PNG, GIF, WebP, TIFF, BMP, SVG, MP3, FLAC, WAV, AAC, OGG, SRT, VTT, ASS, and more
 - **Multiple input methods** — drag-and-drop from vault or OS, or browse with native file picker
-- **Engineering-focused** — codec, codec profile, bitrate, bitrate mode, resolution, frame rate, sample rate, channel layout, HDR format, color space, and more
-- **Comparison diff** — drop two files of the same type to see a side-by-side table with differences highlighted
-- **Privacy first** — all processing is local via WASM, no data leaves your device
-
-## What Works Today
-
-- Sidebar panel with film strip icon in the right sidebar
-- Two drop zones (primary + compare) with drag-and-drop and native file picker
-- Compare zone locked to same media category as primary file
-- **Metadata parsing** via mediainfo.js — drop a file and see collapsible sections with full track details (General, Video, Audio, Text, Image)
+- **Engineering-focused metadata** — codec, codec profile, bitrate, bitrate mode, resolution, frame rate, sample rate, channel layout, HDR format, color space, and more
 - **Media previews** — images render inline, videos and audio get playback controls, subtitles show a text preview
-- **Comparison view** — drop a second file to see three-column side-by-side metadata with differences highlighted
-- **Save to note** — persist single or comparison inspections as markdown notes with embedded media and metadata tables
-- Plugin settings for save directory paths
-
-## Planned
-
-- Additional settings (date format, expanded sections, file size units)
+- **Synced A/B playback** — compare two video encodes with synchronized playback, unified scrub bar, and automatic drift correction
+- **Frame-by-frame stepping** — step forward/back one frame at a time using the file's actual frame rate
+- **Frame capture** — grab screenshots from video players (captures both A and B simultaneously in sync mode)
+- **Comparison diff** — side-by-side metadata table with differences highlighted
+- **Save as note** — persist inspections as markdown notes with embedded media, captured frames (labeled A/B), and metadata tables
+- **Privacy first** — all processing is local via WASM, no data leaves your device
 
 ## Installation
 
@@ -42,8 +30,10 @@ Inspect and compare metadata for images, video, audio, and subtitle files direct
 1. Click the film strip icon in the left ribbon (or run the "Show panel" command)
 2. Drag a media file into the **Primary File** drop zone, or click **Browse files**
 3. Metadata appears in collapsible sections below (General, Video, Audio, etc.)
-4. Once a primary file is loaded, the compare zone activates — drop a second file of the same type to see a side-by-side diff
-5. Click **Save to note** to persist the inspection as a markdown note with embedded media and metadata table
+4. Load a second file of the same type into the compare zone
+5. Click **Sync playback** to enable the unified transport — scrub, play/pause, and step frame-by-frame in lockstep
+6. Pause and click the camera icon to capture frames from both players simultaneously
+7. Click **Save as note** to create a markdown note with video embeds, captured frames, and metadata
 
 ## Development
 
@@ -52,7 +42,7 @@ npm install
 npm run dev        # watch mode
 npm run build      # production build
 npm run lint       # eslint
-npm test           # vitest (46 tests)
+npm test           # vitest
 npm run test:watch # vitest watch mode
 ```
 
