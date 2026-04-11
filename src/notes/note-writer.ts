@@ -1,5 +1,6 @@
 import { normalizePath, type App, type TFile } from "obsidian";
 import type { MediaLensSettings } from "../settings";
+import { splitFileName } from "../utils/media";
 
 async function ensureDirectory(app: App, path: string): Promise<void> {
 	const normalized = normalizePath(path);
@@ -23,12 +24,6 @@ function findAvailablePath(app: App, dir: string, baseName: string, ext: string)
 		i++;
 	}
 	return path;
-}
-
-function splitFileName(fileName: string): { baseName: string; ext: string } {
-	const dotIdx = fileName.lastIndexOf(".");
-	if (dotIdx <= 0) return { baseName: fileName, ext: "" };
-	return { baseName: fileName.slice(0, dotIdx), ext: fileName.slice(dotIdx) };
 }
 
 export async function saveNote(

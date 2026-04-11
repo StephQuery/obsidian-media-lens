@@ -63,3 +63,9 @@ export function getAcceptString(category: MediaCategory | null): string {
 	}
 	return "image/*,video/*,audio/*,.mkv,.flac,.ogg,.oga,.srt,.vtt,.ass,.ssa,.tif,.tiff,.bmp,.svg";
 }
+
+export function splitFileName(fileName: string): { baseName: string; ext: string } {
+	const dotIdx = fileName.lastIndexOf(".");
+	if (dotIdx <= 0) return { baseName: fileName, ext: "" };
+	return { baseName: fileName.slice(0, dotIdx), ext: fileName.slice(dotIdx) };
+}

@@ -21,6 +21,7 @@ export class WipeModal extends Modal {
 	private objectUrls: string[] = [];
 	private syncRaf: number | null = null;
 	private wipePosition = 50;
+	private documentListeners: Array<{ type: string; handler: EventListener }> = [];
 
 	constructor(
 		plugin: MediaLensPlugin,
@@ -45,9 +46,18 @@ export class WipeModal extends Modal {
 
 	onClose() {
 		this.stopSync();
+		for (const { type, handler } of this.documentListeners) {
+			document.removeEventListener(type, handler);
+		}
+		this.documentListeners = [];
 		for (const url of this.objectUrls) URL.revokeObjectURL(url);
 		this.objectUrls = [];
 		this.contentEl.empty();
+	}
+
+	private addDocListener(type: string, handler: EventListener) {
+		document.addEventListener(type, handler);
+		this.documentListeners.push({ type, handler });
 	}
 
 	private createUrl(buffer: ArrayBuffer, ext: string, category: MediaCategory): string {
@@ -112,19 +122,19 @@ export class WipeModal extends Modal {
 			dragging = true;
 			onMove(e.clientX);
 		});
-		document.addEventListener("mousemove", (e: MouseEvent) => onMove(e.clientX));
-		document.addEventListener("mouseup", () => { dragging = false; });
+		this.addDocListener("mousemove", (e) => onMove((e as MouseEvent).clientX));
+		this.addDocListener("mouseup", () => { dragging = false; });
 
-		viewport.addEventListener("touchstart", (e) => {
+		viewport.addEventListener("touchstart", (e: TouchEvent) => {
 			dragging = true;
 			const touch = e.touches[0];
 			if (touch) onMove(touch.clientX);
 		});
-		document.addEventListener("touchmove", (e: TouchEvent) => {
-			const touch = e.touches[0];
+		this.addDocListener("touchmove", (e) => {
+			const touch = (e as TouchEvent).touches[0];
 			if (touch) onMove(touch.clientX);
 		});
-		document.addEventListener("touchend", () => { dragging = false; });
+		this.addDocListener("touchend", () => { dragging = false; });
 	}
 
 	private renderTransport(parent: HTMLElement) {
