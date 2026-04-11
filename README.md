@@ -1,24 +1,28 @@
 # Media Lens
 
-Inspect and compare metadata for images, video, audio, and subtitle files directly in Obsidian. Powered by [mediainfo.js](https://github.com/buzz/mediainfo.js) (WebAssembly port of MediaInfoLib).
+Inspect and compare metadata for images, video, audio, and subtitle files directly in Obsidian.
 
-## Features
+> **Status:** Early development. Drop zone UI is functional. Metadata parsing and save-to-note coming soon.
+
+## Planned Features
 
 - **Sidebar panel** with two drop zones — inspect a single file or compare two files side by side
 - **Broad format support** — JPEG, PNG, GIF, WebP, TIFF, BMP, SVG, MP4, MOV, MKV, AVI, WebM, MP3, FLAC, WAV, AAC, OGG, SRT, VTT, ASS, and more
-- **Multiple input methods** — drag-and-drop from vault or OS, file picker, or load the active file
+- **Multiple input methods** — drag-and-drop from vault or OS, or browse with native file picker
 - **Engineering-focused** — codec, bitrate, resolution, sample rate, file size, duration
 - **Save to note** — persist inspections as markdown notes with embedded media and metadata tables
 - **Comparison diff** — differences between two files highlighted in a side-by-side table
 - **Privacy first** — all processing is local, no data leaves your device
 
+## What Works Today
+
+- Sidebar panel with film strip icon in the right sidebar
+- Two drop zones (primary + compare) with drag-and-drop and native file picker
+- Compare zone locked to same media category as primary file
+- File type validation with supported format filtering
+- Plugin settings for save directory paths
+
 ## Installation
-
-### From Community Plugins (coming soon)
-
-1. Open **Settings → Community Plugins → Browse**
-2. Search for "Media Lens"
-3. Click **Install**, then **Enable**
 
 ### Manual
 
@@ -29,18 +33,19 @@ Inspect and compare metadata for images, video, audio, and subtitle files direct
 
 ## Usage
 
-1. Click the camera icon in the left ribbon (or run the "Show Media Lens panel" command)
-2. Drag a media file into the **Primary File** drop zone
-3. Optionally drag a second file into the **Compare File** drop zone to see differences
-4. Click any value to copy it to your clipboard
+1. Click the film strip icon in the left ribbon (or run the "Show panel" command)
+2. Drag a media file into the **Primary File** drop zone, or click **Browse files**
+3. Once a primary file is loaded, the compare zone activates for a second file of the same type
 
 ## Development
 
 ```bash
 npm install
-npm run dev    # watch mode
-npm run build  # production build
-npm run lint   # eslint
+npm run dev        # watch mode
+npm run build      # production build
+npm run lint       # eslint
+npm test           # vitest
+npm run test:watch # vitest watch mode
 ```
 
 ## License
