@@ -50,7 +50,7 @@ export async function parseBuffer(
 	);
 }
 
-export function closeParser() {
+export function closeParser(): void {
 	if (instance) {
 		instance.close();
 		instance = null;
