@@ -27,6 +27,7 @@
 		"vitest": "^4.1.4"
 	},
 	"dependencies": {
+		"mediainfo.js": "^0.3.7",
 		"obsidian": "latest"
 	}
 }
