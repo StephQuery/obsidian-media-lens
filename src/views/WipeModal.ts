@@ -245,7 +245,7 @@ export class WipeModal extends Modal {
 		const frameFwd = this.makeBtn(controls, "chevron-right", "Next frame");
 		const skipFwd = this.makeBtn(controls, "fast-forward", "Forward 10 seconds");
 
-		controls.createSpan({ text: `${fps} fps`, cls: "media-lens-wipe-fps" });
+
 
 		const captureBtn = this.makeBtn(controls, "camera", "Capture frames");
 

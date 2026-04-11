@@ -658,10 +658,6 @@ export class MediaLensView extends ItemView {
 		const sfIcon = skipFwd.createSpan();
 		setIcon(sfIcon, "fast-forward");
 
-		controls.createDiv({ cls: "media-lens-transport-sep" });
-
-		controls.createSpan({ text: `${fps} fps`, cls: "media-lens-frame-fps" });
-
 		// Play/pause logic
 		const updatePlayIcon = () => {
 			ppIcon.empty();
