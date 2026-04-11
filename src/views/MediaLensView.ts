@@ -486,29 +486,36 @@ export class MediaLensView extends ItemView {
 		const frameDuration = 1 / fps;
 		// Rate-based drift correction — nudge vidB's playback speed instead of hard seeking
 		let driftRaf: number | null = null;
+		let driftActive = false;
 		const correctDrift = () => {
-			if (!vidA.paused && !vidB.paused) {
-				const drift = vidB.currentTime - vidA.currentTime;
-				if (Math.abs(drift) > 1) {
-					// Way off — hard seek
-					vidB.currentTime = vidA.currentTime;
-					vidB.playbackRate = 1;
-				} else if (Math.abs(drift) > frameDuration) {
-					// Nudge rate to catch up or slow down
-					vidB.playbackRate = drift > 0 ? 0.95 : 1.05;
-				} else {
-					vidB.playbackRate = 1;
-				}
+			if (!driftActive || vidA.paused || vidB.paused || vidA.ended || vidB.ended) {
+				driftRaf = null;
+				driftActive = false;
+				vidB.playbackRate = 1;
+				return;
 			}
+
+			const drift = vidB.currentTime - vidA.currentTime;
+			if (Math.abs(drift) > 1) {
+				vidB.currentTime = vidA.currentTime;
+				vidB.playbackRate = 1;
+			} else if (Math.abs(drift) > frameDuration) {
+				vidB.playbackRate = drift > 0 ? 0.95 : 1.05;
+			} else {
+				vidB.playbackRate = 1;
+			}
+
 			driftRaf = requestAnimationFrame(correctDrift);
 		};
 
 		const startDriftCorrection = () => {
-			if (driftRaf === null) {
+			if (!driftActive) {
+				driftActive = true;
 				driftRaf = requestAnimationFrame(correctDrift);
 			}
 		};
 		const stopDriftCorrection = () => {
+			driftActive = false;
 			if (driftRaf !== null) {
 				cancelAnimationFrame(driftRaf);
 				driftRaf = null;
