@@ -6,6 +6,7 @@ import {
 	getCategory,
 	getCategoryLabel,
 	getMimeType,
+	MAX_FILE_SIZE,
 } from "../utils/media";
 import type { MediaCategory } from "../utils/media";
 import { parseBuffer } from "../parsers/media-info-parser";
@@ -86,17 +87,20 @@ export class MediaLensView extends ItemView {
 
 	clearPrimary() {
 		this.primaryFile = null;
+		this.captures = [];
 		this.render();
 	}
 
 	clearCompare() {
 		this.compareFile = null;
+		this.captures = [];
 		this.render();
 	}
 
 	clearAll() {
 		this.primaryFile = null;
 		this.compareFile = null;
+		this.captures = [];
 		this.render();
 	}
 
@@ -1199,6 +1203,10 @@ export class MediaLensView extends ItemView {
 
 		try {
 			const buffer = await bufferOrPromise;
+			if (buffer.byteLength > MAX_FILE_SIZE) {
+				new Notice(`File too large (${formatSize(buffer.byteLength)}). Maximum is 100 GB.`);
+				return;
+			}
 			const wasmUrl = this.plugin.getWasmUrl();
 			const result = await parseBuffer(buffer, wasmUrl);
 			const sections = normalizeTracks(result);

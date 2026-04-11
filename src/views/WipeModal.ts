@@ -95,7 +95,7 @@ export class WipeModal extends Modal {
 		const labelB = viewport.createDiv({ cls: "media-lens-wipe-label media-lens-wipe-label-b" });
 		labelB.createSpan({ text: "B" });
 
-		// Wipe drag — use transform instead of style.left for GPU compositing
+		// Wipe drag — update CSS variables that drive clip-path and divider position
 		let dragging = false;
 
 		const updateWipe = (pct: number) => {
@@ -127,10 +127,12 @@ export class WipeModal extends Modal {
 
 		viewport.addEventListener("touchstart", (e: TouchEvent) => {
 			dragging = true;
+			e.preventDefault();
 			const touch = e.touches[0];
 			if (touch) onMove(touch.clientX);
-		});
+		}, { passive: false });
 		this.addDocListener("touchmove", (e) => {
+			if (dragging) e.preventDefault();
 			const touch = (e as TouchEvent).touches[0];
 			if (touch) onMove(touch.clientX);
 		});
@@ -339,8 +341,11 @@ export class WipeModal extends Modal {
 	}
 
 	private async captureWipeComposite(vidA: HTMLVideoElement, vidB: HTMLVideoElement) {
-		const w = vidA.videoWidth || 1920;
-		const h = vidA.videoHeight || 1080;
+		if (vidA.readyState < 2 || vidB.readyState < 2 || vidA.videoWidth === 0 || vidB.videoWidth === 0) {
+			return;
+		}
+		const w = vidA.videoWidth;
+		const h = vidA.videoHeight;
 		const splitX = Math.round(w * (this.wipePosition / 100));
 
 		const canvas = document.createElement("canvas");
