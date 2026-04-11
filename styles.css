@@ -124,6 +124,28 @@
 	background: var(--background-modifier-hover);
 }
 
+/* ── Save Button ── */
+
+.media-lens-save-bar {
+	display: flex;
+}
+
+.media-lens-btn-save {
+	width: 100%;
+	padding: var(--size-4-2);
+	font-size: var(--font-ui-small);
+	border: none;
+	border-radius: var(--radius-m);
+	cursor: pointer;
+	color: var(--text-on-accent);
+	background: var(--interactive-accent);
+	transition: background-color 100ms ease;
+}
+
+.media-lens-btn-save:hover {
+	background: var(--interactive-accent-hover);
+}
+
 /* ── Media Preview ── */
 
 .media-lens-preview {

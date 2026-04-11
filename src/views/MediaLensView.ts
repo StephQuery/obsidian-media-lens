@@ -11,6 +11,8 @@ import type { MediaCategory } from "../utils/media";
 import { parseBuffer } from "../parsers/media-info-parser";
 import { normalizeTracks } from "../parsers/track-normalizer";
 import type { MetadataSection } from "../parsers/types";
+import { generateSingleNote, generateComparisonNote, generateNoteName } from "../notes/note-generator";
+import { saveNote, copyExternalFileToVault } from "../notes/note-writer";
 
 export const VIEW_TYPE_MEDIA_LENS = "media-lens-view";
 
@@ -97,6 +99,10 @@ export class MediaLensView extends ItemView {
 		this.renderDropZone(container, "compare");
 		if (this.compareFile) {
 			this.renderPreview(container, this.compareFile);
+		}
+
+		if (this.primaryFile) {
+			this.renderSaveButton(container);
 		}
 
 		if (this.primaryFile && this.compareFile) {
@@ -270,6 +276,70 @@ export class MediaLensView extends ItemView {
 		}
 	}
 
+
+	private renderSaveButton(parent: HTMLElement) {
+		const wrapper = parent.createDiv({ cls: "media-lens-save-bar" });
+		const label = this.compareFile ? "Save comparison" : "Save to note";
+		const btn = wrapper.createEl("button", {
+			text: label,
+			cls: "media-lens-btn media-lens-btn-save",
+		});
+		btn.addEventListener("click", () => {
+			void this.handleSave();
+		});
+	}
+
+	private async handleSave() {
+		if (!this.primaryFile) return;
+
+		const settings = this.plugin.settings;
+		const assetsDir = settings.externalAssetsDirectory;
+
+		try {
+			// Copy external files into vault so embeds work
+			let primaryPath = this.primaryFile.name;
+			if (this.primaryFile.source === "external") {
+				primaryPath = await copyExternalFileToVault(
+					this.app, this.primaryFile.buffer, this.primaryFile.name, settings
+				);
+			}
+
+			let content: string;
+			let noteName: string;
+
+			if (this.compareFile) {
+				let comparePath = this.compareFile.name;
+				if (this.compareFile.source === "external") {
+					comparePath = await copyExternalFileToVault(
+						this.app, this.compareFile.buffer, this.compareFile.name, settings
+					);
+				}
+
+				content = generateComparisonNote(
+					{ name: this.primaryFile.name, source: this.primaryFile.source, category: this.primaryFile.category, vaultPath: primaryPath },
+					{ name: this.compareFile.name, source: this.compareFile.source, category: this.compareFile.category, vaultPath: comparePath },
+					this.primaryFile.sections,
+					this.compareFile.sections,
+					assetsDir
+				);
+				noteName = generateNoteName(this.primaryFile.name, this.compareFile.name);
+			} else {
+				content = generateSingleNote(
+					{ name: this.primaryFile.name, source: this.primaryFile.source, category: this.primaryFile.category, vaultPath: primaryPath },
+					this.primaryFile.sections,
+					assetsDir
+				);
+				noteName = generateNoteName(this.primaryFile.name);
+			}
+
+			const file = await saveNote(this.app, content, noteName, settings);
+			await this.app.workspace.getLeaf("tab").openFile(file);
+			new Notice("Saved inspection note");
+		} catch (err) {
+			console.error("Media Lens: save error", err);
+			new Notice("Failed to save note");
+		}
+	}
 
 	private renderSections(parent: HTMLElement, sections: MetadataSection[]) {
 		for (const section of sections) {
