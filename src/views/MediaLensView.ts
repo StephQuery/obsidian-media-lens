@@ -35,6 +35,7 @@ export class MediaLensView extends ItemView {
 	compareFile: LoadedFile | null = null;
 	private objectUrls: string[] = [];
 	private captureStripUrls: string[] = [];
+	private docListeners: Array<{ type: string; handler: EventListener }> = [];
 	private syncEnabled = false;
 	private primaryVideo: HTMLVideoElement | null = null;
 	private compareVideo: HTMLVideoElement | null = null;
@@ -68,6 +69,7 @@ export class MediaLensView extends ItemView {
 			this.driftRafCleanup();
 			this.driftRafCleanup = null;
 		}
+		this.removeDocListeners();
 		this.revokeObjectUrls();
 		this.contentEl.empty();
 	}
@@ -77,6 +79,18 @@ export class MediaLensView extends ItemView {
 		this.objectUrls = [];
 		for (const url of this.captureStripUrls) URL.revokeObjectURL(url);
 		this.captureStripUrls = [];
+	}
+
+	private addDocListener(type: string, handler: EventListener) {
+		document.addEventListener(type, handler);
+		this.docListeners.push({ type, handler });
+	}
+
+	private removeDocListeners() {
+		for (const { type, handler } of this.docListeners) {
+			document.removeEventListener(type, handler);
+		}
+		this.docListeners = [];
 	}
 
 	private createObjectUrl(buffer: ArrayBuffer, mimeType: string): string {
@@ -109,6 +123,7 @@ export class MediaLensView extends ItemView {
 
 	private render() {
 		this.revokeObjectUrls();
+		this.removeDocListeners();
 		if (this.driftRafCleanup) {
 			this.driftRafCleanup();
 			this.driftRafCleanup = null;
@@ -604,8 +619,8 @@ export class MediaLensView extends ItemView {
 				Promise.all([vidA.play(), vidB.play()]).catch(() => { /* playback blocked */ });
 			}
 		};
-		document.addEventListener("mouseup", endScrub);
-		document.addEventListener("touchend", endScrub);
+		this.addDocListener("mouseup", endScrub);
+		this.addDocListener("touchend", endScrub);
 
 		// Controls row: [Mute A] [Mute B] | [◀◀] [◀ Frame] [⏹] [▶⏸] [Frame ▶] [▶▶] | [📷] | fps
 		const controls = bar.createDiv({ cls: "media-lens-transport-controls" });
@@ -779,8 +794,8 @@ export class MediaLensView extends ItemView {
 			scrubbing = false;
 			if (wasPlaying) video.play().catch(() => { /* blocked */ });
 		};
-		document.addEventListener("mouseup", endScrub);
-		document.addEventListener("touchend", endScrub);
+		this.addDocListener("mouseup", endScrub);
+		this.addDocListener("touchend", endScrub);
 
 		// Controls row
 		const controls = transport.createDiv({ cls: "media-lens-transport-controls" });
