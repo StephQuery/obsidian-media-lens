@@ -189,13 +189,17 @@ export class MediaLensView extends ItemView {
 	private async handleDrop(e: DragEvent, slot: "primary" | "compare") {
 		const droppedFile = e.dataTransfer?.files?.[0];
 		if (droppedFile) {
-			await this.loadExternalFile(droppedFile, slot);
+			await this.loadFile(droppedFile.name, await droppedFile.arrayBuffer(), "external", slot);
 			return;
 		}
 
 		const path = e.dataTransfer?.getData("text/plain");
 		if (path) {
-			await this.loadVaultFile(path, slot);
+			const abstractFile = this.app.vault.getAbstractFileByPath(path);
+			if (abstractFile instanceof TFile) {
+				const buffer = await this.app.vault.readBinary(abstractFile);
+				await this.loadFile(abstractFile.name, buffer, "vault", slot);
+			}
 		}
 	}
 
@@ -207,54 +211,43 @@ export class MediaLensView extends ItemView {
 		const input = document.createElement("input");
 		input.type = "file";
 		input.accept = accept;
-		input.addClass("media-lens-hidden");
+		input.classList.add("media-lens-hidden");
+
+		const cleanup = () => { input.remove(); };
 
 		input.addEventListener("change", () => {
 			const file = input.files?.[0];
 			if (file) {
-				void this.loadExternalFile(file, slot);
+				void this.loadFile(file.name, file.arrayBuffer(), "external", slot);
 			}
-			input.remove();
+			cleanup();
 		});
+
+		// Clean up if the user cancels the picker
+		window.addEventListener("focus", cleanup, { once: true });
 
 		document.body.appendChild(input);
 		input.click();
 	}
 
-	private async loadExternalFile(file: File, slot: "primary" | "compare") {
-		const category = getCategory(file.name);
-		if (!category) {
-			new Notice("Unsupported file type");
-			return;
-		}
-		const buffer = await file.arrayBuffer();
-		this.setFile(slot, {
-			name: file.name,
-			size: buffer.byteLength,
-			source: "external",
-			buffer,
-			category,
-		});
-	}
-
-	private async loadVaultFile(path: string, slot: "primary" | "compare") {
-		const abstractFile = this.app.vault.getAbstractFileByPath(path);
-		if (!(abstractFile instanceof TFile)) return;
-
-		const category = getCategory(abstractFile.name);
+	private async loadFile(
+		name: string,
+		bufferOrPromise: ArrayBuffer | Promise<ArrayBuffer>,
+		source: "vault" | "external",
+		slot: "primary" | "compare"
+	) {
+		const category = getCategory(name);
 		if (!category) {
 			new Notice("Unsupported file type");
 			return;
 		}
 
-		const buffer = await this.app.vault.readBinary(abstractFile);
-		this.setFile(slot, {
-			name: abstractFile.name,
-			size: buffer.byteLength,
-			source: "vault",
-			buffer,
-			category,
-		});
+		try {
+			const buffer = await bufferOrPromise;
+			this.setFile(slot, { name, size: buffer.byteLength, source, buffer, category });
+		} catch {
+			new Notice("Failed to read file");
+		}
 	}
 
 	private setFile(slot: "primary" | "compare", file: LoadedFile) {

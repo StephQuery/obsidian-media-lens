@@ -85,7 +85,7 @@
 .media-lens-file-info {
 	display: flex;
 	flex-direction: column;
-	gap: 2px;
+	gap: var(--size-2-1);
 	min-width: 0;
 }
 
