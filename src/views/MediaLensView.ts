@@ -601,7 +601,7 @@ export class MediaLensView extends ItemView {
 		this.addDocListener("mouseup", endScrub);
 		this.addDocListener("touchend", endScrub);
 
-		// Controls row: [Mute A] [Mute B] | [◀◀] [◀ Frame] [⏹] [▶⏸] [Frame ▶] [▶▶] | [📷] | fps
+		// Controls row: [Mute A] [Mute B] | [◀◀] [◀ Frame] [⏹] [▶⏸] [Frame ▶] [▶▶]
 		const controls = bar.createDiv({ cls: "media-lens-transport-controls" });
 
 		// Mute buttons
@@ -1202,7 +1202,9 @@ export class MediaLensView extends ItemView {
 	) {
 		const category = getCategory(name);
 		if (!category) {
-			new Notice(`Unsupported file type: ${name.split(".").pop() ?? "unknown"}`);
+			const dotIdx = name.lastIndexOf(".");
+			const ext = dotIdx > 0 ? name.slice(dotIdx + 1) : "(no extension)";
+			new Notice(`Unsupported file type: ${ext}`);
 			return;
 		}
 
