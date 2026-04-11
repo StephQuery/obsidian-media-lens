@@ -54,7 +54,8 @@ export class MediaLensView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		return "Media lens";
+		// eslint-disable-next-line obsidianmd/ui/sentence-case
+		return "Media Lens";
 	}
 
 	getIcon(): string {
@@ -205,11 +206,12 @@ export class MediaLensView extends ItemView {
 
 		const unsyncBtn = header.createEl("button", {
 			cls: "media-lens-btn-clear",
-			attr: { "aria-label": "Exit comparison" },
+			attr: { "aria-label": "Exit synced comparison" },
 		});
 		setIcon(unsyncBtn, "x");
 		unsyncBtn.addEventListener("click", () => {
-			this.clearAll();
+			this.syncEnabled = false;
+			this.render();
 		});
 	}
 
