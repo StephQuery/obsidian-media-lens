@@ -30,9 +30,9 @@ function normalizeGeneral(track: Track): MetadataSection {
 	const fields = [
 		field("Format", t.Format),
 		field("Format version", t.Format_Version),
-		field("File size", typeof t.FileSize === "number" ? formatSize(t.FileSize) : t.FileSize),
-		field("Duration", typeof t.Duration === "number" ? formatDuration(t.Duration) : t.Duration),
-		field("Overall bitrate", typeof t.OverallBitRate === "number" ? formatBitrate(t.OverallBitRate) : t.OverallBitRate),
+		field("File size", t.FileSize != null ? formatSize(Number(t.FileSize)) : undefined),
+		field("Duration", t.Duration != null ? formatDuration(Number(t.Duration)) : undefined),
+		field("Overall bitrate", t.OverallBitRate != null ? formatBitrate(Number(t.OverallBitRate)) : undefined),
 		field("Overall bitrate mode", t.OverallBitRate_Mode),
 		field("Frame rate", t.FrameRate ? str(t.FrameRate) + " fps" : undefined),
 		field("Encoded date", t.Encoded_Date),
@@ -62,7 +62,7 @@ function normalizeVideo(track: Track, index: number): MetadataSection {
 		field("Display aspect ratio", t.DisplayAspectRatio_String || t.DisplayAspectRatio),
 		field("Frame rate", t.FrameRate ? str(t.FrameRate) + " fps" : undefined),
 		field("Frame rate mode", t.FrameRate_Mode),
-		field("Bitrate", typeof t.BitRate === "number" ? formatBitrate(t.BitRate) : t.BitRate),
+		field("Bitrate", t.BitRate != null ? formatBitrate(Number(t.BitRate)) : undefined),
 		field("Bitrate mode", t.BitRate_Mode),
 		field("Bit depth", t.BitDepth ? str(t.BitDepth) + " bit" : undefined),
 		field("Color space", t.ColorSpace),
@@ -72,7 +72,7 @@ function normalizeVideo(track: Track, index: number): MetadataSection {
 		field("Matrix coefficients", t.matrix_coefficients),
 		field("HDR format", t.HDR_Format),
 		field("Scan type", t.ScanType),
-		field("Stream size", typeof t.StreamSize === "number" ? formatSize(t.StreamSize) : t.StreamSize),
+		field("Stream size", t.StreamSize != null ? formatSize(Number(t.StreamSize)) : undefined),
 	].filter((f): f is MetadataField => f !== null);
 
 	return { id: `video-${index}`, name, fields, defaultExpanded: true };
@@ -85,8 +85,8 @@ function normalizeAudio(track: Track, index: number): MetadataSection {
 		field("Codec", t.Format),
 		field("Codec profile", t.Format_Profile),
 		field("Format settings", t.Format_Settings),
-		field("Duration", typeof t.Duration === "number" ? formatDuration(t.Duration) : t.Duration),
-		field("Bitrate", typeof t.BitRate === "number" ? formatBitrate(t.BitRate) : t.BitRate),
+		field("Duration", t.Duration != null ? formatDuration(Number(t.Duration)) : undefined),
+		field("Bitrate", t.BitRate != null ? formatBitrate(Number(t.BitRate)) : undefined),
 		field("Bitrate mode", t.BitRate_Mode),
 		field("Channels", t.Channels ? str(t.Channels) : undefined),
 		field("Channel layout", t.ChannelLayout),
@@ -94,7 +94,7 @@ function normalizeAudio(track: Track, index: number): MetadataSection {
 		field("Bit depth", t.BitDepth ? str(t.BitDepth) + " bit" : undefined),
 		field("Compression mode", t.Compression_Mode),
 		field("Language", t.Language_String || t.Language),
-		field("Stream size", typeof t.StreamSize === "number" ? formatSize(t.StreamSize) : t.StreamSize),
+		field("Stream size", t.StreamSize != null ? formatSize(Number(t.StreamSize)) : undefined),
 		field("Title", t.Title),
 	].filter((f): f is MetadataField => f !== null);
 
@@ -109,7 +109,7 @@ function normalizeText(track: Track, index: number): MetadataSection {
 		field("Codec", t.CodecID),
 		field("Language", t.Language_String || t.Language),
 		field("Title", t.Title),
-		field("Duration", typeof t.Duration === "number" ? formatDuration(t.Duration) : t.Duration),
+		field("Duration", t.Duration != null ? formatDuration(Number(t.Duration)) : undefined),
 		field("Element count", t.ElementCount),
 	].filter((f): f is MetadataField => f !== null);
 
