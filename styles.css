@@ -66,6 +66,11 @@
 	border-radius: var(--radius-s);
 }
 
+/* When synced, both video zones stack tightly */
+.media-lens--synced .media-lens-zone .media-lens-preview {
+	border-radius: var(--radius-s);
+}
+
 /* ── Drop Zone ── */
 
 .media-lens-drop-zone {

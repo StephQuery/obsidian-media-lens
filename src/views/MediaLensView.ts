@@ -46,9 +46,19 @@ export class MediaLensView extends ItemView {
 	private primaryVideo: HTMLVideoElement | null = null;
 	private compareVideo: HTMLVideoElement | null = null;
 	private driftCleanup: (() => void) | null = null;
-	private videoAbort: AbortController | null = null;
+	private primaryAbort: AbortController | null = null;
+	private compareAbort: AbortController | null = null;
 	private captures: Array<{ slot: "primary" | "compare" | "wipe"; timestamp: number; blob: Blob; label: string }> = [];
 	private captureStripEl: HTMLElement | null = null;
+
+	// Persistent zone containers — created once in onOpen, selectively rebuilt
+	private primaryZone: HTMLElement | null = null;
+	private compareZone: HTMLElement | null = null;
+	private transportZone: HTMLElement | null = null;
+	private actionZone: HTMLElement | null = null;
+	private captureZone: HTMLElement | null = null;
+	private metadataZone: HTMLElement | null = null;
+	private prevState: { primaryName: string | null; compareName: string | null; syncEnabled: boolean } | null = null;
 
 	constructor(leaf: WorkspaceLeaf, plugin: MediaLensPlugin) {
 		super(leaf);
@@ -69,6 +79,14 @@ export class MediaLensView extends ItemView {
 	}
 
 	async onOpen() {
+		const container = this.contentEl;
+		container.addClass("media-lens-container");
+		this.primaryZone = container.createDiv({ cls: "media-lens-zone" });
+		this.compareZone = container.createDiv({ cls: "media-lens-zone" });
+		this.transportZone = container.createDiv({ cls: "media-lens-zone" });
+		this.actionZone = container.createDiv({ cls: "media-lens-zone" });
+		this.captureZone = container.createDiv({ cls: "media-lens-zone" });
+		this.metadataZone = container.createDiv({ cls: "media-lens-zone" });
 		this.render();
 	}
 
@@ -77,10 +95,10 @@ export class MediaLensView extends ItemView {
 			this.driftCleanup();
 			this.driftCleanup = null;
 		}
-		if (this.videoAbort) {
-			this.videoAbort.abort();
-			this.videoAbort = null;
-		}
+		this.primaryAbort?.abort();
+		this.compareAbort?.abort();
+		this.primaryAbort = null;
+		this.compareAbort = null;
 		this.removeDocListeners();
 		this.revokeFileMediaUrl(this.primaryFile);
 		this.revokeFileMediaUrl(this.compareFile);
@@ -224,85 +242,142 @@ export class MediaLensView extends ItemView {
 	}
 
 	private render() {
-		this.log(`render: primary="${this.primaryFile?.name ?? "none"}" compare="${this.compareFile?.name ?? "none"}" sync=${this.syncEnabled}`);
-		this.revokeObjectUrls();
+		const prev = this.prevState;
+		const curr = {
+			primaryName: this.primaryFile?.name ?? null,
+			compareName: this.compareFile?.name ?? null,
+			syncEnabled: this.syncEnabled,
+		};
+		this.log(`render: primary="${curr.primaryName ?? "none"}" compare="${curr.compareName ?? "none"}" sync=${curr.syncEnabled}`);
+
+		const firstRender = prev === null;
+		const primaryChanged = firstRender || prev.primaryName !== curr.primaryName;
+		const compareChanged = firstRender || prev.compareName !== curr.compareName;
+		const syncChanged = firstRender || prev.syncEnabled !== curr.syncEnabled;
+
+		// Rebuild video zones when their file or sync state changed.
+		// Compare zone also rebuilds when primary changes (drop zone depends on primary state).
+		const pendingZones: Promise<void>[] = [];
+		if (primaryChanged || syncChanged) {
+			pendingZones.push(this.rebuildPrimaryZone());
+		}
+		if (compareChanged || primaryChanged || syncChanged) {
+			pendingZones.push(this.rebuildCompareZone());
+		}
+
+		// Lightweight zones rebuild synchronously first, then again after
+		// async video zones complete (so video refs are available for buttons).
+		this.rebuildTransportZone();
+		this.rebuildActionZone();
+		this.rebuildCaptureZone();
+		this.rebuildMetadataZone();
+
+		if (pendingZones.length > 0) {
+			void Promise.all(pendingZones).then(() => {
+				this.rebuildTransportZone();
+				this.rebuildActionZone();
+			});
+		}
+
+		// Update synced CSS class
+		this.contentEl.toggleClass("media-lens--synced",
+			this.syncEnabled && this.primaryFile !== null && this.compareFile !== null);
+
+		this.prevState = curr;
+	}
+
+	private async rebuildPrimaryZone() {
+		if (!this.primaryZone) return;
+		this.log("rebuildPrimaryZone");
+		this.primaryAbort?.abort();
+		this.primaryAbort = new AbortController();
+		this.primaryVideo = null;
+		this.primaryZone.empty();
+
+		const synced = this.syncEnabled && this.primaryFile !== null && this.compareFile !== null;
+		if (synced && this.primaryFile && this.compareFile) {
+			// Synced mode: combined header, no individual file headers
+			this.renderSyncedHeader(this.primaryZone, this.primaryFile, this.compareFile);
+		} else {
+			this.renderDropZone(this.primaryZone, "primary");
+		}
+		if (this.primaryFile) {
+			await this.renderPreview(this.primaryZone, this.primaryFile, "primary");
+		}
+	}
+
+	private async rebuildCompareZone() {
+		if (!this.compareZone) return;
+		this.log("rebuildCompareZone");
+		this.compareAbort?.abort();
+		this.compareAbort = new AbortController();
+		this.compareVideo = null;
+		this.compareZone.empty();
+
+		const synced = this.syncEnabled && this.primaryFile !== null && this.compareFile !== null;
+		if (!synced) {
+			// Only show individual drop zone / file header in non-synced mode
+			this.renderDropZone(this.compareZone, "compare");
+		}
+		if (this.compareFile) {
+			await this.renderPreview(this.compareZone, this.compareFile, "compare");
+		}
+	}
+
+	private rebuildTransportZone() {
+		if (!this.transportZone) return;
 		this.removeDocListeners();
 		if (this.driftCleanup) {
 			this.driftCleanup();
 			this.driftCleanup = null;
 		}
-		if (this.videoAbort) {
-			this.videoAbort.abort();
+		this.transportZone.empty();
+
+		if (this.primaryVideo && this.compareVideo && this.syncEnabled) {
+			this.transportZone.createEl("hr", { cls: "media-lens-divider" });
+			this.renderUnifiedTransport(this.transportZone);
 		}
-		this.videoAbort = new AbortController();
-		this.primaryVideo = null;
-		this.compareVideo = null;
-		const container = this.contentEl;
-		container.empty();
-		container.addClass("media-lens-container");
-
-		// Kick off async rendering; capture references to avoid stale state
-		const primaryFile = this.primaryFile;
-		const compareFile = this.compareFile;
-		const syncEnabled = this.syncEnabled;
-
-		void this.renderAsync(container, primaryFile, compareFile, syncEnabled);
 	}
 
-	private async renderAsync(
-		container: HTMLElement,
-		primaryFile: LoadedFile | null,
-		compareFile: LoadedFile | null,
-		syncEnabled: boolean
-	) {
-		if (syncEnabled && primaryFile && compareFile) {
-			this.renderSyncedHeader(container, primaryFile, compareFile);
-			const videoStack = container.createDiv({ cls: "media-lens-synced-stack" });
-			await this.renderPreview(videoStack, primaryFile, "primary");
-			await this.renderPreview(videoStack, compareFile, "compare");
-		} else {
-			this.renderDropZone(container, "primary");
-			if (primaryFile) {
-				await this.renderPreview(container, primaryFile, "primary");
-			}
-			this.renderDropZone(container, "compare");
-			if (compareFile) {
-				await this.renderPreview(container, compareFile, "compare");
-			}
+	private rebuildActionZone() {
+		if (!this.actionZone) return;
+		this.actionZone.empty();
+
+		if (!this.primaryFile) return;
+
+		this.actionZone.createEl("hr", { cls: "media-lens-divider" });
+		const actionRow = this.actionZone.createDiv({ cls: "media-lens-action-row" });
+		if (this.primaryVideo && this.compareVideo) {
+			this.renderSyncToggle(actionRow);
 		}
-
-		if (primaryFile) {
-			container.createEl("hr", { cls: "media-lens-divider" });
-
-			// Transport (only when synced)
-			if (this.primaryVideo && this.compareVideo && syncEnabled) {
-				this.renderUnifiedTransport(container);
-			}
-
-			// Actions row
-			container.createEl("hr", { cls: "media-lens-divider" });
-			const actionRow = container.createDiv({ cls: "media-lens-action-row" });
-			if (this.primaryVideo && this.compareVideo) {
-				this.renderSyncToggle(actionRow);
-			}
-			if (primaryFile.category === "video") {
-				this.renderCaptureButton(actionRow);
-			}
-			if (primaryFile && compareFile && primaryFile.category === "video") {
-				this.renderWipeButton(actionRow);
-			}
-			this.renderSaveButton(actionRow);
-
-			// Capture strip (thumbnails)
-			this.renderCaptureStrip(container);
+		if (this.primaryFile.category === "video") {
+			this.renderCaptureButton(actionRow);
 		}
+		if (this.primaryFile && this.compareFile && this.primaryFile.category === "video") {
+			this.renderWipeButton(actionRow);
+		}
+		this.renderSaveButton(actionRow);
+	}
 
-		if (primaryFile && compareFile) {
-			this.renderComparison(container, primaryFile, compareFile);
-		} else if (primaryFile) {
-			this.renderSections(container, primaryFile.sections);
+	private rebuildCaptureZone() {
+		if (!this.captureZone) return;
+		this.captureZone.empty();
+		if (this.primaryFile) {
+			this.renderCaptureStrip(this.captureZone);
+		}
+	}
+
+	private rebuildMetadataZone() {
+		if (!this.metadataZone) return;
+		this.revokeObjectUrls();
+		this.metadataZone.empty();
+
+		if (this.primaryFile && this.compareFile) {
+			this.renderComparison(this.metadataZone, this.primaryFile, this.compareFile);
+		} else if (this.primaryFile) {
+			this.renderSections(this.metadataZone, this.primaryFile.sections);
 		} else {
-			const hint = container.createDiv({ cls: "media-lens-hint" });
+			const hint = this.metadataZone.createDiv({ cls: "media-lens-hint" });
 			hint.createEl("span", {
 				text: "Supports images, video, audio, and subtitles",
 			});
@@ -470,7 +545,7 @@ export class MediaLensView extends ItemView {
 				});
 				video.controls = !synced;
 				video.muted = true;
-				const signal = this.videoAbort?.signal;
+				const signal = (slot === "primary" ? this.primaryAbort : this.compareAbort)?.signal;
 				video.addEventListener("loadstart", () => this.log(`video[${slot}]: loadstart`), { signal });
 				video.addEventListener("loadedmetadata", () => this.log(`video[${slot}]: loadedmetadata (${video.videoWidth}x${video.videoHeight}, ${video.duration.toFixed(1)}s)`), { signal });
 				video.addEventListener("loadeddata", () => this.log(`video[${slot}]: loadeddata (readyState=${video.readyState})`), { signal });
