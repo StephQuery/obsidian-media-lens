@@ -345,14 +345,6 @@
 
 /* ── Frame Stepping ── */
 
-.media-lens-frame-step {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: var(--size-4-2);
-	padding: var(--size-2-2) 0;
-}
-
 .media-lens-frame-btn {
 	display: flex;
 	align-items: center;
@@ -584,11 +576,6 @@
 	border: 1px solid var(--background-modifier-border);
 }
 
-.media-lens-wipe-fps {
-	font-size: var(--font-ui-smaller);
-	color: var(--text-faint);
-	padding: 0 var(--size-4-1);
-}
 
 /* ── Muted Text ── */
 
