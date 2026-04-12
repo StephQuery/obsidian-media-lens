@@ -21,6 +21,7 @@ export function createDriftController(
 ): DriftController {
 	let raf: number | null = null;
 	let active = false;
+	let frameCount = 0;
 
 	const loop = () => {
 		if (!active || vidA.paused || vidA.ended) {
@@ -30,15 +31,25 @@ export function createDriftController(
 			return;
 		}
 
-		if (!vidB.ended && !vidB.paused) {
-			const drift = vidB.currentTime - vidA.currentTime;
-			if (Math.abs(drift) > 1) {
-				vidB.currentTime = vidA.currentTime;
+		frameCount++;
+
+		// Only check drift every 5th frame to reduce CPU
+		if (frameCount % 5 === 0 && !vidB.ended && !vidB.paused) {
+			// Skip corrections when either video is buffering (readyState < 3 = HAVE_FUTURE_DATA)
+			if (vidA.readyState < 3 || vidB.readyState < 3) {
 				vidB.playbackRate = 1;
-			} else if (Math.abs(drift) > frameDuration) {
-				vidB.playbackRate = drift > 0 ? 0.95 : 1.05;
 			} else {
-				vidB.playbackRate = 1;
+				const drift = vidB.currentTime - vidA.currentTime;
+				if (Math.abs(drift) > 3) {
+					// Large drift — hard seek
+					vidB.currentTime = vidA.currentTime;
+					vidB.playbackRate = 1;
+				} else if (Math.abs(drift) > frameDuration * 3) {
+					// Moderate drift — gentle rate adjustment
+					vidB.playbackRate = drift > 0 ? 0.97 : 1.03;
+				} else {
+					vidB.playbackRate = 1;
+				}
 			}
 		}
 
@@ -49,6 +60,7 @@ export function createDriftController(
 		start() {
 			if (!active) {
 				active = true;
+				frameCount = 0;
 				raf = requestAnimationFrame(loop);
 			}
 		},

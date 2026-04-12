@@ -453,11 +453,13 @@ export class MediaLensView extends ItemView {
 			}
 			case "video": {
 				const url = await this.getMediaUrl(file, mime);
-				this.log(`renderPreview[${slot}]: "${file.name}" url=${url.slice(0, 120)}`);
+				const synced = this.syncEnabled && this.primaryFile !== null && this.compareFile !== null;
+				this.log(`renderPreview[${slot}]: "${file.name}" synced=${synced} url=${url.slice(0, 120)}`);
 				const video = wrapper.createEl("video", {
 					cls: "media-lens-preview-video",
-					attr: { src: url, controls: "true" },
+					attr: { src: url },
 				});
+				video.controls = !synced;
 				video.muted = true;
 				video.addEventListener("loadstart", () => this.log(`video[${slot}]: loadstart`));
 				video.addEventListener("loadedmetadata", () => this.log(`video[${slot}]: loadedmetadata (${video.videoWidth}x${video.videoHeight}, ${video.duration.toFixed(1)}s)`));
@@ -563,13 +565,14 @@ export class MediaLensView extends ItemView {
 		const label = btn.createSpan({ text: "Wipe" });
 
 		btn.addEventListener("click", () => {
+			this.log(`wipeButton: clicked, A="${fileA.name}" B="${fileB.name}"`);
 			btn.disabled = true;
 			label.textContent = "Opening...";
 			requestAnimationFrame(() => {
 				openWipeModal(
 				this.plugin,
-				{ name: fileA.name, buffer: fileA.buffer, category: fileA.category, frameRate: this.getFrameRate(fileA), fileRef: fileA.fileRef },
-				{ name: fileB.name, buffer: fileB.buffer, category: fileB.category, frameRate: this.getFrameRate(fileB), fileRef: fileB.fileRef },
+				{ name: fileA.name, buffer: fileA.buffer, category: fileA.category, frameRate: this.getFrameRate(fileA), fileRef: fileA.fileRef, mediaUrl: fileA.mediaUrl },
+				{ name: fileB.name, buffer: fileB.buffer, category: fileB.category, frameRate: this.getFrameRate(fileB), fileRef: fileB.fileRef, mediaUrl: fileB.mediaUrl },
 				(vidA, vidB, wipeBlob) => {
 					if (wipeBlob) {
 						const time = vidA.currentTime;
@@ -613,6 +616,7 @@ export class MediaLensView extends ItemView {
 		const label = btn.createSpan({ text: this.syncEnabled ? "Unsync playback" : "Sync playback" });
 
 		btn.addEventListener("click", () => {
+			this.log(`syncToggle: clicked, current=${this.syncEnabled}, switching to ${!this.syncEnabled}`);
 			btn.disabled = true;
 			label.textContent = this.syncEnabled ? "Unsyncing..." : "Syncing...";
 			setTimeout(() => {
@@ -625,7 +629,11 @@ export class MediaLensView extends ItemView {
 	private renderUnifiedTransport(parent: HTMLElement) {
 		const vidA = this.primaryVideo;
 		const vidB = this.compareVideo;
-		if (!vidA || !vidB || !this.primaryFile) return;
+		if (!vidA || !vidB || !this.primaryFile) {
+			this.logError("renderUnifiedTransport: missing video refs or primaryFile");
+			return;
+		}
+		this.log("renderUnifiedTransport: building synced transport");
 
 		const fps = this.getFrameRate(this.primaryFile);
 		const frameDuration = 1 / fps;
@@ -790,9 +798,14 @@ export class MediaLensView extends ItemView {
 		vidA.addEventListener("pause", updatePlayIcon);
 
 		playPauseBtn.addEventListener("click", () => {
+			this.log(`syncTransport: play/pause clicked (paused=${vidA.paused})`);
 			if (vidA.paused) {
 				vidB.currentTime = vidA.currentTime;
-				Promise.all([vidA.play(), vidB.play()]).catch(() => { /* playback blocked */ });
+				Promise.all([vidA.play(), vidB.play()]).then(() => {
+					this.log("syncTransport: both playing");
+				}).catch((err) => {
+					this.logError("syncTransport: play failed", err);
+				});
 			} else {
 				vidA.pause();
 				vidB.pause();
@@ -848,6 +861,7 @@ export class MediaLensView extends ItemView {
 	}
 
 	private async captureSyncedFrames(vidA: HTMLVideoElement, vidB: HTMLVideoElement) {
+		this.log(`captureSyncedFrames: vidA.paused=${vidA.paused} t=${vidA.currentTime.toFixed(3)}`);
 		const wasPaused = vidA.paused;
 		if (!wasPaused) {
 			vidA.pause();
@@ -871,7 +885,9 @@ export class MediaLensView extends ItemView {
 	}
 
 	private async captureFrame(video: HTMLVideoElement, slot: "primary" | "compare") {
+		this.log(`captureFrame[${slot}]: ready=${isVideoReady(video)} t=${video.currentTime.toFixed(3)} ${video.videoWidth}x${video.videoHeight}`);
 		if (!isVideoReady(video)) {
+			this.logError(`captureFrame[${slot}]: video not ready (readyState=${video.readyState}, videoWidth=${video.videoWidth})`);
 			new Notice("Video not ready for capture");
 			return;
 		}
@@ -960,6 +976,7 @@ export class MediaLensView extends ItemView {
 	}
 
 	async handleSave() {
+		this.log(`handleSave: primary="${this.primaryFile?.name ?? "none"}" compare="${this.compareFile?.name ?? "none"}" captures=${this.captures.length}`);
 		if (!this.primaryFile) return;
 
 		const settings = this.plugin.settings;

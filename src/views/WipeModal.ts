@@ -1,8 +1,9 @@
-import { Modal, Notice, setIcon } from "obsidian";
+import { Modal, normalizePath, Notice, setIcon } from "obsidian";
 import type MediaLensPlugin from "../main";
-import { getMimeType } from "../utils/media";
 import { createDriftController, formatTimestamp, isVideoReady, type DriftController } from "../utils/video-sync";
 import type { MediaCategory } from "../utils/media";
+
+const TEMP_DIR = ".media-lens-temp";
 
 interface WipeFile {
 	name: string;
@@ -10,9 +11,39 @@ interface WipeFile {
 	category: MediaCategory;
 	frameRate: number;
 	fileRef?: File;
+	/** Pre-existing media URL from the sidebar (avoids re-writing temp files) */
+	mediaUrl?: string;
+	tempVaultPath?: string;
 }
 
 type CaptureCallback = (vidA: HTMLVideoElement, vidB: HTMLVideoElement, wipeBlob?: Blob) => void;
+
+function log(msg: string, ...args: unknown[]) {
+	console.log(`[Media Lens][Wipe] ${msg}`, ...args);
+}
+
+function logError(msg: string, ...args: unknown[]) {
+	console.error(`[Media Lens][Wipe] ${msg}`, ...args);
+}
+
+function attachVideoLogging(video: HTMLVideoElement, label: string) {
+	video.addEventListener("loadstart", () => log(`video[${label}]: loadstart`));
+	video.addEventListener("loadedmetadata", () => log(`video[${label}]: loadedmetadata (${video.videoWidth}x${video.videoHeight}, ${video.duration.toFixed(1)}s)`));
+	video.addEventListener("loadeddata", () => log(`video[${label}]: loadeddata (readyState=${video.readyState})`));
+	video.addEventListener("canplay", () => log(`video[${label}]: canplay`));
+	video.addEventListener("canplaythrough", () => log(`video[${label}]: canplaythrough`));
+	video.addEventListener("playing", () => log(`video[${label}]: playing`));
+	video.addEventListener("pause", () => log(`video[${label}]: pause`));
+	video.addEventListener("stalled", () => log(`video[${label}]: stalled (readyState=${video.readyState})`));
+	video.addEventListener("waiting", () => log(`video[${label}]: waiting (readyState=${video.readyState}, currentTime=${video.currentTime.toFixed(1)})`));
+	video.addEventListener("seeked", () => log(`video[${label}]: seeked (currentTime=${video.currentTime.toFixed(3)})`));
+	video.addEventListener("error", () => {
+		const err = video.error;
+		const msg = err ? `code=${err.code} "${err.message}"` : "unknown";
+		logError(`video[${label}]: error — ${msg}`);
+		new Notice(`Wipe video error (${label}): ${msg}`);
+	});
+}
 
 export class WipeModal extends Modal {
 	private fileA: WipeFile;
@@ -24,6 +55,7 @@ export class WipeModal extends Modal {
 	private driftController: DriftController | null = null;
 	private wipePosition = 50;
 	private documentListeners: Array<{ type: string; handler: EventListener }> = [];
+	private ownedTempPaths = new Set<string>();
 
 	constructor(
 		plugin: MediaLensPlugin,
@@ -37,24 +69,33 @@ export class WipeModal extends Modal {
 		this.onCapture = onCapture;
 	}
 
-	onOpen() {
+	async onOpen() {
+		log("onOpen: starting");
 		const { contentEl, modalEl } = this;
 		modalEl.addClass("media-lens-wipe-modal");
 		contentEl.empty();
 
-		this.renderWipeView(contentEl);
+		await this.renderWipeView(contentEl);
 		this.renderTransport(contentEl);
+		log("onOpen: complete");
 	}
 
 	onClose() {
+		log("onClose: cleaning up");
 		if (this.driftController) this.driftController.stop();
 		for (const { type, handler } of this.documentListeners) {
 			document.removeEventListener(type, handler);
 		}
 		this.documentListeners = [];
-		for (const url of this.objectUrls) URL.revokeObjectURL(url);
+		for (const url of this.objectUrls) {
+			if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+		}
 		this.objectUrls = [];
+		// Only remove temp files the modal created (not pre-existing sidebar ones)
+		if (this.ownedTempPaths.has(this.fileA.tempVaultPath ?? "")) void this.removeTempFile(this.fileA);
+		if (this.ownedTempPaths.has(this.fileB.tempVaultPath ?? "")) void this.removeTempFile(this.fileB);
 		this.contentEl.empty();
+		log("onClose: done");
 	}
 
 	private addDocListener(type: string, handler: EventListener, options?: AddEventListenerOptions) {
@@ -62,34 +103,84 @@ export class WipeModal extends Modal {
 		this.documentListeners.push({ type, handler });
 	}
 
-	private createUrl(file: WipeFile): string {
-		if (file.fileRef) {
-			const url = URL.createObjectURL(file.fileRef);
-			this.objectUrls.push(url);
-			return url;
+	private async getMediaUrl(file: WipeFile): Promise<string> {
+		if (file.mediaUrl) {
+			log(`getMediaUrl: reusing pre-existing URL for "${file.name}" → ${file.mediaUrl.slice(0, 80)}…`);
+			return file.mediaUrl;
 		}
-		const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-		const mime = getMimeType(ext, file.category);
-		const url = URL.createObjectURL(new Blob([file.buffer], { type: mime }));
-		this.objectUrls.push(url);
+
+		// Write to temp vault file for reliable app:// playback
+		const tempPath = await this.writeTempFile(file);
+		const url = this.app.vault.adapter.getResourcePath(normalizePath(tempPath));
+		file.tempVaultPath = tempPath;
+		file.mediaUrl = url;
+		log(`getMediaUrl: "${file.name}" via temp vault → resourcePath (${tempPath}) → ${url.slice(0, 120)}…`);
 		return url;
 	}
 
-	private renderWipeView(parent: HTMLElement) {
+	private async writeTempFile(file: WipeFile): Promise<string> {
+		const tempDir = normalizePath(TEMP_DIR);
+		if (!this.app.vault.getAbstractFileByPath(tempDir)) {
+			log(`writeTempFile: creating temp directory "${tempDir}"`);
+			try {
+				await this.app.vault.createFolder(tempDir);
+			} catch {
+				// Folder may already exist
+			}
+		}
+		const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+		const ext = file.name.split(".").pop()?.toLowerCase() ?? "bin";
+		const tempPath = normalizePath(`${TEMP_DIR}/${id}.${ext}`);
+		log(`writeTempFile: writing "${file.name}" (${file.buffer.byteLength} bytes) → "${tempPath}"`);
+		await this.app.vault.createBinary(tempPath, file.buffer);
+		this.ownedTempPaths.add(tempPath);
+		log(`writeTempFile: write complete`);
+		return tempPath;
+	}
+
+	private async removeTempFile(file: WipeFile) {
+		if (!file.tempVaultPath) return;
+		const path = file.tempVaultPath;
+		file.tempVaultPath = undefined;
+		try {
+			const abstractFile = this.app.vault.getAbstractFileByPath(path);
+			if (abstractFile) {
+				log(`removeTempFile: deleting "${path}"`);
+				await this.app.vault.delete(abstractFile);
+			}
+		} catch (err) {
+			logError(`removeTempFile: failed to delete "${path}"`, err);
+		}
+	}
+
+	private async renderWipeView(parent: HTMLElement) {
 		const viewport = parent.createDiv({ cls: "media-lens-wipe-viewport" });
 
+		log(`renderWipeView: preparing URLs for A="${this.fileA.name}" B="${this.fileB.name}"`);
+		const [urlA, urlB] = await Promise.all([
+			this.getMediaUrl(this.fileA),
+			this.getMediaUrl(this.fileB),
+		]);
+
 		// Video B (bottom layer)
+		log(`renderWipeView: creating video B, url=${urlB.slice(0, 80)}…`);
 		this.vidB = viewport.createEl("video", {
 			cls: "media-lens-wipe-video media-lens-wipe-video-b",
-			attr: { src: this.createUrl(this.fileB), preload: "auto" },
 		});
-		this.vidB.muted = true; // mute B by default to reduce decode overhead
+		this.vidB.muted = true;
+		this.vidB.preload = "auto";
+		attachVideoLogging(this.vidB, "B");
+		this.vidB.src = urlB;
 
 		// Video A (top layer, clipped)
+		log(`renderWipeView: creating video A, url=${urlA.slice(0, 80)}…`);
 		this.vidA = viewport.createEl("video", {
 			cls: "media-lens-wipe-video media-lens-wipe-video-a",
-			attr: { src: this.createUrl(this.fileA), preload: "auto" },
 		});
+		this.vidA.muted = true;
+		this.vidA.preload = "auto";
+		attachVideoLogging(this.vidA, "A");
+		this.vidA.src = urlA;
 
 		// Divider
 		const divider = viewport.createDiv({ cls: "media-lens-wipe-divider" });
@@ -150,13 +241,19 @@ export class WipeModal extends Modal {
 			if (touch) onMove(touch.clientX);
 		}, { passive: false });
 		this.addDocListener("touchend", () => { dragging = false; });
+
+		log("renderWipeView: complete");
 	}
 
 	private renderTransport(parent: HTMLElement) {
 		const vidA = this.vidA;
 		const vidB = this.vidB;
-		if (!vidA || !vidB) return;
+		if (!vidA || !vidB) {
+			logError("renderTransport: vidA or vidB is null, skipping transport");
+			return;
+		}
 
+		log("renderTransport: building controls");
 		const fps = this.fileA.frameRate;
 		const frameDuration = 1 / fps;
 
@@ -181,6 +278,7 @@ export class WipeModal extends Modal {
 			} else {
 				durationLabel.textContent = formatTimestamp(maxDur);
 			}
+			log(`renderTransport: duration updated (A=${durA.toFixed(1)}s, B=${durB.toFixed(1)}s)`);
 		};
 		vidA.addEventListener("loadedmetadata", updateDuration);
 		vidB.addEventListener("loadedmetadata", updateDuration);
@@ -215,6 +313,7 @@ export class WipeModal extends Modal {
 			wasPlaying = !vidA.paused;
 			vidA.pause();
 			vidB.pause();
+			log("transport: scrub started");
 		};
 		seekInput.addEventListener("mousedown", startScrub);
 		seekInput.addEventListener("touchstart", startScrub);
@@ -238,6 +337,7 @@ export class WipeModal extends Modal {
 			const t = parseFloat(seekInput.value);
 			vidA.currentTime = t;
 			vidB.currentTime = t;
+			log(`transport: scrub ended at ${t.toFixed(3)}s`);
 			if (wasPlaying) {
 				this.syncPlay(vidA, vidB);
 			}
@@ -260,8 +360,6 @@ export class WipeModal extends Modal {
 		const frameFwd = this.makeBtn(controls, "chevron-right", "Next frame");
 		const skipFwd = this.makeBtn(controls, "fast-forward", "Forward 10 seconds");
 
-
-
 		const captureBtn = this.makeBtn(controls, "camera", "Capture frames");
 
 		const updatePlayIcon = () => {
@@ -275,6 +373,7 @@ export class WipeModal extends Modal {
 
 		// Play/pause
 		playPause.addEventListener("click", () => {
+			log(`transport: play/pause clicked (paused=${vidA.paused})`);
 			if (vidA.paused) {
 				this.syncPlay(vidA, vidB);
 			} else {
@@ -288,6 +387,7 @@ export class WipeModal extends Modal {
 			const t = Math.max(0, vidA.currentTime + delta);
 			vidA.currentTime = t;
 			vidB.currentTime = t;
+			log(`transport: step delta=${delta.toFixed(4)} → t=${t.toFixed(3)}`);
 		};
 
 		frameBack.addEventListener("click", () => step(-frameDuration));
@@ -295,8 +395,9 @@ export class WipeModal extends Modal {
 		skipBack.addEventListener("click", () => step(-10));
 		skipFwd.addEventListener("click", () => step(10));
 
-		// Capture — pause, align, wait for seek, then composite + individual frames
+		// Capture
 		captureBtn.addEventListener("click", () => {
+			log("transport: capture clicked");
 			captureBtn.disabled = true;
 			void (async () => {
 				this.syncPause(vidA, vidB);
@@ -309,12 +410,28 @@ export class WipeModal extends Modal {
 				captureBtn.disabled = false;
 			});
 		});
+
+		log("renderTransport: complete");
 	}
 
-	private syncPlay(vidA: HTMLVideoElement, vidB: HTMLVideoElement) {
+	private async syncPlay(vidA: HTMLVideoElement, vidB: HTMLVideoElement) {
+		log(`syncPlay: aligning B to A (t=${vidA.currentTime.toFixed(3)}), waiting for buffer...`);
 		vidB.currentTime = vidA.currentTime;
 		vidB.playbackRate = 1;
-		Promise.all([vidA.play(), vidB.play()]).catch(() => { /* playback blocked */ });
+
+		// Wait for both videos to have enough data before starting
+		await Promise.all([
+			this.waitForReadyState(vidA, 3, "A"),
+			this.waitForReadyState(vidB, 3, "B"),
+		]);
+
+		log("syncPlay: both buffered, starting playback");
+		try {
+			await Promise.all([vidA.play(), vidB.play()]);
+			log("syncPlay: both videos playing");
+		} catch (err) {
+			logError("syncPlay: play failed", err);
+		}
 
 		if (!this.driftController) {
 			this.driftController = createDriftController(vidA, vidB, 1 / this.fileA.frameRate);
@@ -322,7 +439,23 @@ export class WipeModal extends Modal {
 		this.driftController.start();
 	}
 
+	private waitForReadyState(video: HTMLVideoElement, minState: number, label: string): Promise<void> {
+		if (video.readyState >= minState) return Promise.resolve();
+		return new Promise((resolve) => {
+			log(`waitForReadyState[${label}]: readyState=${video.readyState}, waiting for >=${minState}`);
+			const check = () => {
+				if (video.readyState >= minState) {
+					log(`waitForReadyState[${label}]: ready (readyState=${video.readyState})`);
+					resolve();
+				}
+			};
+			video.addEventListener("canplay", check, { once: true });
+			video.addEventListener("canplaythrough", check, { once: true });
+		});
+	}
+
 	private syncPause(vidA: HTMLVideoElement, vidB: HTMLVideoElement) {
+		log("syncPause");
 		if (this.driftController) this.driftController.stop();
 		vidA.pause();
 		vidB.pause();
@@ -331,19 +464,25 @@ export class WipeModal extends Modal {
 	}
 
 	private async captureWipeComposite(vidA: HTMLVideoElement, vidB: HTMLVideoElement) {
+		log(`captureWipeComposite: vidA ready=${isVideoReady(vidA)} vidB ready=${isVideoReady(vidB)} wipePos=${this.wipePosition.toFixed(1)}`);
 		if (!isVideoReady(vidA) || !isVideoReady(vidB)) {
 			new Notice("Video not ready for capture");
+			logError("captureWipeComposite: video not ready");
 			return;
 		}
 		const w = vidA.videoWidth;
 		const h = vidA.videoHeight;
 		const splitX = Math.round(w * (this.wipePosition / 100));
+		log(`captureWipeComposite: canvas ${w}x${h}, splitX=${splitX}`);
 
 		const canvas = document.createElement("canvas");
 		canvas.width = w;
 		canvas.height = h;
 		const ctx = canvas.getContext("2d");
-		if (!ctx) return;
+		if (!ctx) {
+			logError("captureWipeComposite: failed to get 2d context");
+			return;
+		}
 
 		// Draw B full
 		ctx.drawImage(vidB, 0, 0, w, h);
@@ -380,10 +519,12 @@ export class WipeModal extends Modal {
 			canvas.toBlob(resolve, "image/png");
 		});
 		if (!blob) {
+			logError("captureWipeComposite: toBlob returned null");
 			new Notice("Failed to capture wipe frame");
 			return;
 		}
 
+		log(`captureWipeComposite: captured ${blob.size} bytes`);
 		this.onCapture(vidA, vidB, blob);
 		new Notice(`Wipe frame captured at ${formatTimestamp(vidA.currentTime)}`);
 	}
@@ -413,6 +554,7 @@ export class WipeModal extends Modal {
 		update();
 		btn.addEventListener("click", () => {
 			video.muted = !video.muted;
+			log(`mute toggle: ${label} → muted=${video.muted}`);
 			update();
 		});
 	}
@@ -420,9 +562,10 @@ export class WipeModal extends Modal {
 
 export function openWipeModal(
 	plugin: MediaLensPlugin,
-	fileA: { name: string; buffer: ArrayBuffer; category: MediaCategory; frameRate: number; fileRef?: File },
-	fileB: { name: string; buffer: ArrayBuffer; category: MediaCategory; frameRate: number; fileRef?: File },
+	fileA: { name: string; buffer: ArrayBuffer; category: MediaCategory; frameRate: number; fileRef?: File; mediaUrl?: string },
+	fileB: { name: string; buffer: ArrayBuffer; category: MediaCategory; frameRate: number; fileRef?: File; mediaUrl?: string },
 	onCapture: CaptureCallback
 ) {
+	log(`openWipeModal: A="${fileA.name}" (${fileA.buffer.byteLength} bytes) B="${fileB.name}" (${fileB.buffer.byteLength} bytes)`);
 	new WipeModal(plugin, fileA, fileB, onCapture).open();
 }
