@@ -36,11 +36,7 @@ export function renderSyncTransport(
 	const frameDuration = 1 / fps;
 	const drift = createDriftController(vidA, vidB, frameDuration);
 
-	vidA.addEventListener("play", () => {
-		vidB.currentTime = vidA.currentTime;
-		vidB.playbackRate = 1;
-		drift.start();
-	});
+	vidA.addEventListener("play", () => drift.start());
 	vidA.addEventListener("pause", () => drift.stop());
 	vidA.addEventListener("ended", () => drift.stop());
 
@@ -183,10 +179,17 @@ export function renderSyncTransport(
 		callbacks.log(`transport: play/pause clicked (paused=${vidA.paused})`);
 		if (vidA.paused) {
 			vidB.currentTime = vidA.currentTime;
-			Promise.all([vidA.play(), vidB.play()]).then(() => {
-				callbacks.log("transport: both playing");
+			callbacks.log(`transport: playing A (readyState=${vidA.readyState}, muted=${vidA.muted}, src=${vidA.src.slice(0, 60)})`);
+			callbacks.log(`transport: playing B (readyState=${vidB.readyState}, muted=${vidB.muted}, src=${vidB.src.slice(0, 60)})`);
+			vidA.play().then(() => {
+				callbacks.log(`transport: A playing OK`);
 			}).catch((err) => {
-				callbacks.logError("transport: play failed", err);
+				callbacks.logError("transport: A play failed", err);
+			});
+			vidB.play().then(() => {
+				callbacks.log(`transport: B playing OK`);
+			}).catch((err) => {
+				callbacks.logError("transport: B play failed", err);
 			});
 			drift.start();
 		} else {

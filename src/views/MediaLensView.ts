@@ -633,26 +633,29 @@ export class MediaLensView extends ItemView {
 		const label = btn.createSpan({ text: "Split view" });
 
 		btn.addEventListener("click", () => {
+			if (!this.primaryVideo || !this.compareVideo) return;
 			this.log(`splitViewButton: clicked, A="${fileA.name}" B="${fileB.name}"`);
 			// Pause sidebar playback before opening split view modal
-			if (this.primaryVideo && !this.primaryVideo.paused) this.primaryVideo.pause();
-			if (this.compareVideo && !this.compareVideo.paused) this.compareVideo.pause();
+			if (!this.primaryVideo.paused) this.primaryVideo.pause();
+			if (!this.compareVideo.paused) this.compareVideo.pause();
 			btn.disabled = true;
 			label.textContent = "Opening...";
+			const vidA = this.primaryVideo;
+			const vidB = this.compareVideo;
 			requestAnimationFrame(() => {
 				openSplitViewModal(
 				this.plugin,
-				{ name: fileA.name, buffer: fileA.buffer, category: fileA.category, frameRate: this.getFrameRate(fileA), fileRef: fileA.fileRef, mediaUrl: fileA.mediaUrl },
-				{ name: fileB.name, buffer: fileB.buffer, category: fileB.category, frameRate: this.getFrameRate(fileB), fileRef: fileB.fileRef, mediaUrl: fileB.mediaUrl },
-				(vidA, vidB, splitBlob) => {
+				{ name: fileA.name, frameRate: this.getFrameRate(fileA), video: vidA },
+				{ name: fileB.name, frameRate: this.getFrameRate(fileB), video: vidB },
+				(capturedVidA, capturedVidB, splitBlob) => {
 					if (splitBlob) {
-						const time = vidA.currentTime;
+						const time = capturedVidA.currentTime;
 						const label = formatTimestamp(time);
 						this.captures.push({ slot: "split-view", timestamp: time, blob: splitBlob, label });
 						this.updateCaptureStrip();
 					}
-					void this.captureFrame(vidA, "primary");
-					void this.captureFrame(vidB, "compare");
+					void this.captureFrame(capturedVidA, "primary");
+					void this.captureFrame(capturedVidB, "compare");
 				}
 			);
 			btn.disabled = false;

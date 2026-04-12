@@ -1,20 +1,12 @@
-import { Modal, normalizePath, Notice } from "obsidian";
+import { Modal, Notice } from "obsidian";
 import type MediaLensPlugin from "../main";
 import { formatTimestamp, isVideoReady } from "../utils/video-sync";
-import type { MediaCategory } from "../utils/media";
 import { renderSyncTransport, type SyncTransportResult } from "./sync-transport";
 
-const TEMP_DIR = ".media-lens-temp";
-
-interface SplitViewFile {
+interface SplitViewConfig {
 	name: string;
-	buffer: ArrayBuffer;
-	category: MediaCategory;
 	frameRate: number;
-	fileRef?: File;
-	/** Pre-existing media URL from the sidebar (avoids re-writing temp files) */
-	mediaUrl?: string;
-	tempVaultPath?: string;
+	video: HTMLVideoElement;
 }
 
 type CaptureCallback = (vidA: HTMLVideoElement, vidB: HTMLVideoElement, splitBlob?: Blob) => void;
@@ -27,81 +19,65 @@ function logError(msg: string, ...args: unknown[]) {
 	console.error(`[Media Lens][SplitView] ${msg}`, ...args);
 }
 
-function attachVideoLogging(video: HTMLVideoElement, label: string, signal: AbortSignal) {
-	const opts = { signal };
-	video.addEventListener("loadstart", () => log(`video[${label}]: loadstart`), opts);
-	video.addEventListener("loadedmetadata", () => log(`video[${label}]: loadedmetadata (${video.videoWidth}x${video.videoHeight}, ${video.duration.toFixed(1)}s)`), opts);
-	video.addEventListener("loadeddata", () => log(`video[${label}]: loadeddata (readyState=${video.readyState})`), opts);
-	video.addEventListener("canplay", () => log(`video[${label}]: canplay`), opts);
-	video.addEventListener("canplaythrough", () => log(`video[${label}]: canplaythrough`), opts);
-	video.addEventListener("playing", () => log(`video[${label}]: playing`), opts);
-	video.addEventListener("pause", () => log(`video[${label}]: pause`), opts);
-	video.addEventListener("stalled", () => log(`video[${label}]: stalled (readyState=${video.readyState})`), opts);
-	video.addEventListener("waiting", () => log(`video[${label}]: waiting (readyState=${video.readyState}, currentTime=${video.currentTime.toFixed(1)})`), opts);
-	video.addEventListener("seeked", () => log(`video[${label}]: seeked (currentTime=${video.currentTime.toFixed(3)})`), opts);
-	video.addEventListener("error", () => {
-		const err = video.error;
-		const msg = err ? `code=${err.code} "${err.message}"` : "unknown";
-		logError(`video[${label}]: error — ${msg}`);
-		new Notice(`Split view video error (${label}): ${msg}`);
-	}, opts);
-}
-
 export class SplitViewModal extends Modal {
-	private fileA: SplitViewFile;
-	private fileB: SplitViewFile;
+	private configA: SplitViewConfig;
+	private configB: SplitViewConfig;
 	private onCapture: CaptureCallback;
-	private vidA: HTMLVideoElement | null = null;
-	private vidB: HTMLVideoElement | null = null;
-	private objectUrls: string[] = [];
+	private vidA: HTMLVideoElement;
+	private vidB: HTMLVideoElement;
 	private transport: SyncTransportResult | null = null;
 	private splitPosition = 50;
 	private documentListeners: Array<{ type: string; handler: EventListener }> = [];
-	private ownedTempPaths = new Set<string>();
-	private videoAbort = new AbortController();
-	private closed = false;
+	/** Original parent elements — videos are returned here on close */
+	private vidAParent: HTMLElement | null = null;
+	private vidBParent: HTMLElement | null = null;
 
 	constructor(
 		plugin: MediaLensPlugin,
-		fileA: SplitViewFile,
-		fileB: SplitViewFile,
+		configA: SplitViewConfig,
+		configB: SplitViewConfig,
 		onCapture: CaptureCallback
 	) {
 		super(plugin.app);
-		this.fileA = fileA;
-		this.fileB = fileB;
+		this.configA = configA;
+		this.configB = configB;
+		this.vidA = configA.video;
+		this.vidB = configB.video;
 		this.onCapture = onCapture;
 	}
 
-	async onOpen() {
-		log("onOpen: starting");
+	onOpen() {
+		log("onOpen: transferring video elements");
 		const { contentEl, modalEl } = this;
 		modalEl.addClass("media-lens-wipe-modal");
 		contentEl.empty();
 
-		await this.renderSplitView(contentEl);
+		// Remember original parents so we can return videos on close
+		this.vidAParent = this.vidA.parentElement;
+		this.vidBParent = this.vidB.parentElement;
+
+		this.renderSplitView(contentEl);
 		this.renderTransport(contentEl);
-		log("onOpen: modal visible, buffering in background");
-		// Don't block — show modal immediately with loading overlay,
-		// controls enable once both videos are ready
-		void this.waitForBothReady();
+		log("onOpen: complete — videos transferred, no reload needed");
 	}
 
 	onClose() {
-		log("onClose: cleaning up");
-		this.closed = true;
-		this.videoAbort.abort();
+		log("onClose: returning video elements to sidebar");
 		if (this.transport) this.transport.stopDrift();
 		for (const { type, handler } of this.documentListeners) {
 			document.removeEventListener(type, handler);
 		}
 		this.documentListeners = [];
-		for (const url of this.objectUrls) {
-			if (url.startsWith("blob:")) URL.revokeObjectURL(url);
-		}
-		this.objectUrls = [];
-		if (this.ownedTempPaths.has(this.fileA.tempVaultPath ?? "")) void this.removeTempFile(this.fileA);
-		if (this.ownedTempPaths.has(this.fileB.tempVaultPath ?? "")) void this.removeTempFile(this.fileB);
+
+		// Strip split view CSS classes before returning
+		this.vidA.removeClass("media-lens-wipe-video", "media-lens-wipe-video-a");
+		this.vidB.removeClass("media-lens-wipe-video", "media-lens-wipe-video-b");
+		this.vidA.setCssProps({ "--wipe-clip": "" });
+
+		// Return videos to their original sidebar parents
+		if (this.vidAParent) this.vidAParent.appendChild(this.vidA);
+		if (this.vidBParent) this.vidBParent.appendChild(this.vidB);
+
 		this.contentEl.empty();
 		log("onClose: done");
 	}
@@ -111,93 +87,18 @@ export class SplitViewModal extends Modal {
 		this.documentListeners.push({ type, handler });
 	}
 
-	private async getMediaUrl(file: SplitViewFile): Promise<string> {
-		if (file.mediaUrl) {
-			log(`getMediaUrl: reusing pre-existing URL for "${file.name}" → ${file.mediaUrl.slice(0, 80)}…`);
-			return file.mediaUrl;
-		}
-
-		// Write to temp vault file for reliable app:// playback
-		const tempPath = await this.writeTempFile(file);
-		const url = this.app.vault.adapter.getResourcePath(normalizePath(tempPath));
-		file.tempVaultPath = tempPath;
-		file.mediaUrl = url;
-		log(`getMediaUrl: "${file.name}" via temp vault → resourcePath (${tempPath}) → ${url.slice(0, 120)}…`);
-		return url;
-	}
-
-	private async writeTempFile(file: SplitViewFile): Promise<string> {
-		const tempDir = normalizePath(TEMP_DIR);
-		if (!this.app.vault.getAbstractFileByPath(tempDir)) {
-			log(`writeTempFile: creating temp directory "${tempDir}"`);
-			try {
-				await this.app.vault.createFolder(tempDir);
-			} catch {
-				// Folder may already exist
-			}
-		}
-		const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-		const ext = file.name.split(".").pop()?.toLowerCase() ?? "bin";
-		const tempPath = normalizePath(`${TEMP_DIR}/${id}.${ext}`);
-		log(`writeTempFile: writing "${file.name}" (${file.buffer.byteLength} bytes) → "${tempPath}"`);
-		await this.app.vault.createBinary(tempPath, file.buffer);
-		this.ownedTempPaths.add(tempPath);
-		log(`writeTempFile: write complete`);
-		return tempPath;
-	}
-
-	private async removeTempFile(file: SplitViewFile) {
-		if (!file.tempVaultPath) return;
-		const path = file.tempVaultPath;
-		file.tempVaultPath = undefined;
-		try {
-			const abstractFile = this.app.vault.getAbstractFileByPath(path);
-			if (abstractFile) {
-				log(`removeTempFile: deleting "${path}"`);
-				await this.app.fileManager.trashFile(abstractFile);
-			}
-		} catch (err) {
-			logError(`removeTempFile: failed to delete "${path}"`, err);
-		}
-	}
-
-	private loadingOverlay: HTMLElement | null = null;
-	private transportButtons: HTMLButtonElement[] = [];
-	private seekInput: HTMLInputElement | null = null;
-
-	private async renderSplitView(parent: HTMLElement) {
+	private renderSplitView(parent: HTMLElement) {
 		const viewport = parent.createDiv({ cls: "media-lens-wipe-viewport" });
 
-		// Loading overlay — shown until both videos are ready
-		this.loadingOverlay = viewport.createDiv({ cls: "media-lens-wipe-loading" });
-		this.loadingOverlay.createEl("span", { text: "Loading…", cls: "media-lens-wipe-loading-text" });
+		// Transfer video B (bottom layer) from sidebar into viewport
+		this.vidB.addClass("media-lens-wipe-video", "media-lens-wipe-video-b");
+		this.vidB.controls = false;
+		viewport.appendChild(this.vidB);
 
-		log(`renderSplitView: preparing URLs for A="${this.fileA.name}" B="${this.fileB.name}"`);
-		const [urlA, urlB] = await Promise.all([
-			this.getMediaUrl(this.fileA),
-			this.getMediaUrl(this.fileB),
-		]);
-		if (this.closed) return;
-
-		// Video B (bottom layer)
-		log(`renderSplitView: creating video B, url=${urlB.slice(0, 80)}…`);
-		this.vidB = viewport.createEl("video", {
-			cls: "media-lens-wipe-video media-lens-wipe-video-b",
-		});
-		this.vidB.muted = true;
-		this.vidB.preload = "auto";
-		attachVideoLogging(this.vidB, "B", this.videoAbort.signal);
-		this.vidB.src = urlB;
-
-		// Video A (top layer, clipped)
-		log(`renderSplitView: creating video A, url=${urlA.slice(0, 80)}…`);
-		this.vidA = viewport.createEl("video", {
-			cls: "media-lens-wipe-video media-lens-wipe-video-a",
-		});
-		this.vidA.muted = true;
-		this.vidA.preload = "auto";
-		attachVideoLogging(this.vidA, "A", this.videoAbort.signal);
-		this.vidA.src = urlA;
+		// Transfer video A (top layer, clipped) from sidebar into viewport
+		this.vidA.addClass("media-lens-wipe-video", "media-lens-wipe-video-a");
+		this.vidA.controls = false;
+		viewport.appendChild(this.vidA);
 
 		// Divider
 		const divider = viewport.createDiv({ cls: "media-lens-wipe-divider" });
@@ -265,13 +166,9 @@ export class SplitViewModal extends Modal {
 	private renderTransport(parent: HTMLElement) {
 		const vidA = this.vidA;
 		const vidB = this.vidB;
-		if (!vidA || !vidB) {
-			logError("renderTransport: vidA or vidB is null, skipping transport");
-			return;
-		}
 
 		log("renderTransport: building controls");
-		const fps = this.fileA.frameRate;
+		const fps = this.configA.frameRate;
 
 		const wrapper = parent.createDiv({ cls: "media-lens-wipe-transport" });
 		const result = renderSyncTransport(wrapper, vidA, vidB, fps, {
@@ -294,48 +191,7 @@ export class SplitViewModal extends Modal {
 		});
 		this.transport = result;
 
-		// Disable all transport until videos are loaded
-		for (const btn of result.buttons) {
-			btn.disabled = true;
-		}
-		result.seekInput.disabled = true;
-		this.transportButtons = result.buttons;
-
 		log("renderTransport: complete");
-	}
-
-	private async waitForBothReady() {
-		if (!this.vidA || !this.vidB) return;
-		await Promise.all([
-			this.waitForReadyState(this.vidA, 4, "A"),
-			this.waitForReadyState(this.vidB, 4, "B"),
-		]);
-		// Remove loading overlay
-		if (this.loadingOverlay) {
-			this.loadingOverlay.remove();
-			this.loadingOverlay = null;
-		}
-		// Enable transport controls
-		for (const btn of this.transportButtons) {
-			btn.disabled = false;
-		}
-		if (this.transport) this.transport.seekInput.disabled = false;
-		log("waitForBothReady: videos ready, UI enabled");
-	}
-
-	private waitForReadyState(video: HTMLVideoElement, minState: number, label: string): Promise<void> {
-		if (video.readyState >= minState) return Promise.resolve();
-		return new Promise((resolve) => {
-			log(`waitForReadyState[${label}]: readyState=${video.readyState}, waiting for >=${minState}`);
-			const check = () => {
-				if (video.readyState >= minState) {
-					log(`waitForReadyState[${label}]: ready (readyState=${video.readyState})`);
-					resolve();
-				}
-			};
-			video.addEventListener("canplay", check, { once: true });
-			video.addEventListener("canplaythrough", check, { once: true });
-		});
 	}
 
 	private async captureSplitComposite(vidA: HTMLVideoElement, vidB: HTMLVideoElement) {
@@ -409,10 +265,10 @@ export class SplitViewModal extends Modal {
 
 export function openSplitViewModal(
 	plugin: MediaLensPlugin,
-	fileA: { name: string; buffer: ArrayBuffer; category: MediaCategory; frameRate: number; fileRef?: File; mediaUrl?: string },
-	fileB: { name: string; buffer: ArrayBuffer; category: MediaCategory; frameRate: number; fileRef?: File; mediaUrl?: string },
+	configA: SplitViewConfig,
+	configB: SplitViewConfig,
 	onCapture: CaptureCallback
 ) {
-	log(`openSplitViewModal: A="${fileA.name}" (${fileA.buffer.byteLength} bytes) B="${fileB.name}" (${fileB.buffer.byteLength} bytes)`);
-	new SplitViewModal(plugin, fileA, fileB, onCapture).open();
+	log(`openSplitViewModal: A="${configA.name}" B="${configB.name}"`);
+	new SplitViewModal(plugin, configA, configB, onCapture).open();
 }
