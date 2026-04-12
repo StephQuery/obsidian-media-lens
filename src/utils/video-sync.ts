@@ -16,22 +16,21 @@ export interface DriftController {
 }
 
 /**
- * Event-driven drift correction. Listens to vidA's `timeupdate` (~4Hz from
- * the browser) and snaps vidB to match when drift exceeds a threshold.
- * No RAF loop, no playbackRate changes — just a periodic hard seek when needed.
+ * Drift correction using RAF for accuracy + timeupdate as fallback.
+ * Snaps vidB to vidA when drift exceeds 1 frame. No playbackRate changes.
+ * RAF loop only runs while active (playing) — zero cost when paused.
  */
 export function createDriftController(
 	vidA: HTMLVideoElement,
 	vidB: HTMLVideoElement,
 	frameDuration: number
 ): DriftController {
-	// Snap threshold: drift must exceed this many frames to trigger correction.
-	// Too low → constant seeking / stutter. Too high → visible desync.
-	const threshold = frameDuration * 3;
+	const threshold = frameDuration;
+	let active = false;
+	let rafId: number | null = null;
 
-	const onTimeUpdate = () => {
+	const correct = () => {
 		if (vidB.paused || vidB.ended) return;
-		// Don't correct while either video is buffering
 		if (vidA.readyState < 3 || vidB.readyState < 3) return;
 
 		const drift = vidB.currentTime - vidA.currentTime;
@@ -40,12 +39,25 @@ export function createDriftController(
 		}
 	};
 
+	const loop = () => {
+		if (!active) { rafId = null; return; }
+		correct();
+		rafId = requestAnimationFrame(loop);
+	};
+
 	return {
 		start() {
-			vidA.addEventListener("timeupdate", onTimeUpdate);
+			if (active) return;
+			active = true;
+			rafId = requestAnimationFrame(loop);
 		},
 		stop() {
-			vidA.removeEventListener("timeupdate", onTimeUpdate);
+			if (!active) return;
+			active = false;
+			if (rafId !== null) {
+				cancelAnimationFrame(rafId);
+				rafId = null;
+			}
 		},
 	};
 }

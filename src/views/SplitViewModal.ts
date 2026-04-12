@@ -201,10 +201,10 @@ export class SplitViewModal extends Modal {
 			logError("captureSplitComposite: video not ready");
 			return;
 		}
-		const w = vidA.videoWidth;
-		const h = vidA.videoHeight;
+		const w = Math.max(vidA.videoWidth, vidB.videoWidth);
+		const h = Math.max(vidA.videoHeight, vidB.videoHeight);
 		const splitX = Math.round(w * (this.splitPosition / 100));
-		log(`captureSplitComposite: canvas ${w}x${h}, splitX=${splitX}`);
+		log(`captureSplitComposite: canvas ${w}x${h}, splitX=${splitX} (A=${vidA.videoWidth}x${vidA.videoHeight}, B=${vidB.videoWidth}x${vidB.videoHeight})`);
 
 		const canvas = document.createElement("canvas");
 		canvas.width = w;
@@ -215,10 +215,10 @@ export class SplitViewModal extends Modal {
 			return;
 		}
 
-		// Draw B full
+		// Draw B scaled to canvas size
 		ctx.drawImage(vidB, 0, 0, w, h);
 
-		// Draw A clipped to left of divider
+		// Draw A clipped to left of divider, scaled to canvas size
 		ctx.save();
 		ctx.beginPath();
 		ctx.rect(0, 0, splitX, h);

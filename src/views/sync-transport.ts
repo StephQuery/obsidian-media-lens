@@ -126,6 +126,7 @@ export function renderSyncTransport(
 	};
 	callbacks.addDocListener("mouseup", endScrub);
 	callbacks.addDocListener("touchend", endScrub);
+	callbacks.addDocListener("touchcancel", endScrub);
 
 	// Controls row
 	const controls = bar.createDiv({ cls: "media-lens-transport-controls" });

@@ -650,8 +650,8 @@ export class MediaLensView extends ItemView {
 				(capturedVidA, capturedVidB, splitBlob) => {
 					if (splitBlob) {
 						const time = capturedVidA.currentTime;
-						const label = formatTimestamp(time);
-						this.captures.push({ slot: "split-view", timestamp: time, blob: splitBlob, label });
+						const timeLabel = formatTimestamp(time);
+						this.captures.push({ slot: "split-view", timestamp: time, blob: splitBlob, label: timeLabel });
 						this.updateCaptureStrip();
 					}
 					void this.captureFrame(capturedVidA, "primary");
