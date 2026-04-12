@@ -70,8 +70,7 @@ export class MediaLensView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		// eslint-disable-next-line obsidianmd/ui/sentence-case
-		return "Media Lens";
+		return "Media lens";
 	}
 
 	getIcon(): string {
@@ -87,6 +86,7 @@ export class MediaLensView extends ItemView {
 		this.actionZone = container.createDiv({ cls: "media-lens-zone" });
 		this.captureZone = container.createDiv({ cls: "media-lens-zone" });
 		this.metadataZone = container.createDiv({ cls: "media-lens-zone" });
+		await super.onOpen();
 		this.render();
 	}
 
