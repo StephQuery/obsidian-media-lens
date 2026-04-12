@@ -1,33 +1,63 @@
 # Media Lens
 
-View detailed metadata for your media files without leaving Obsidian. Drop an image, video, audio, or subtitle file into the sidebar panel to instantly see format details, codec information, resolution, bitrate, duration, and more.
+View detailed metadata for your media files without leaving Obsidian. Add images, videos, audio files, or subtitle files into the sidebar panel to instantly see format details, codec information, resolution, bitrate, duration, and more.
 
-Compare two files side by side to spot differences — perfect for reviewing exports, checking transcodes, or auditing deliverables.
+Compare two files side by side to analyze differences, perfect for reviewing exports, checking transcodes, or auditing deliverables.
 
 ## Features
 
 ### Inspect any media file
 Drop a file into the sidebar or browse from your file system. Media Lens parses the file locally and displays organized metadata in collapsible sections (General, Video, Audio, Text, Image).
 
+![](assets/inspect.png)
+
 **Supported formats:** MP4, MOV, MKV, AVI, WebM, JPEG, PNG, GIF, WebP, TIFF, BMP, SVG, MP3, FLAC, WAV, AAC, OGG, SRT, VTT, ASS, and many more.
+
+---
 
 ### Compare two files
 Load a second file of the same type to see a side-by-side metadata comparison with differences highlighted. Useful for comparing original vs compressed, different export settings, or before/after edits.
 
+![](assets/compare.png)
+
+---
+
 ### Synced video playback
 Compare two video encodes with synchronized playback. A unified transport bar controls both videos — scrub, play/pause, step frame-by-frame, skip forward/back, and mute each player independently.
 
+![](assets/synced-playback.png)
+
+---
+
 ### Split view
-Open a full-screen modal that overlays both videos with a draggable vertical divider. Drag the divider to reveal more of either source — the standard technique for visual quality comparison.
+Open a modal that overlays both videos with a draggable vertical divider. Drag the divider to reveal more of either source for additional visual quality comparison.
+
+![](assets/inspect.png)
+
+---
 
 ### Frame capture
-Grab screenshots from video players at any point. In synced mode, both players are aligned to the exact same frame before capturing. Split view captures a composite showing both sources split at the divider (labeled A|B).
+Grab screenshots from video players at any point. In synced mode, both players are aligned to the same frame before capturing. Split view captures a composite showing both sources split at the divider (labeled A|B).
+
+![](assets/frame-capture.png)
+
+---
 
 ### Save as note
 Persist any inspection or comparison as a markdown note in your vault. Notes include embedded media, captured frame screenshots, and metadata tables organized by section. Auto-named with timestamps and auto-incremented to avoid overwrites.
 
+![](assets/save-as-note.png)
+
+---
+
 ### Media previews
 Images render inline. Videos and audio files get playback controls. Subtitles show a text preview.
+
+![](assets/preview-audio.png)
+
+![](assets/preview-subtitle.png)
+
+---
 
 ### Privacy
 All processing happens locally. No data is sent to any server.
@@ -44,9 +74,7 @@ All processing happens locally. No data is sent to any server.
 
 ### Community Plugins
 
-1. Open **Settings → Community Plugins → Browse**
-2. Search for **Media Lens**
-3. Click **Install**, then **Enable**
+Pending.
 
 ### Manual
 
@@ -68,7 +96,7 @@ All processing happens locally. No data is sent to any server.
 
 ## Compatibility
 
-- **Desktop:** Full support (macOS, Windows, Linux)
+- **Desktop:** Supported
 - **Mobile:** Not recommended — WASM loading and video playback may have limited support on mobile devices
 - **Minimum Obsidian version:** 0.15.0
 
