@@ -1,6 +1,7 @@
 import esbuild from "esbuild";
 import process from "process";
 import { builtinModules } from 'node:module';
+import { copyFileSync } from 'node:fs';
 
 const banner =
 `/*
@@ -33,17 +34,27 @@ const context = await esbuild.context({
 		"@lezer/lr",
 		...builtinModules],
 	format: "cjs",
-	target: "es2018",
+	target: "es2020",
 	logLevel: "info",
 	sourcemap: prod ? false : "inline",
 	treeShaking: true,
 	outfile: "main.js",
 	minify: prod,
+	drop: prod ? ["console", "debugger"] : [],
 });
 
 if (prod) {
 	await context.rebuild();
+	copyFileSync(
+		"node_modules/mediainfo.js/dist/MediaInfoModule.wasm",
+		"MediaInfoModule.wasm"
+	);
 	process.exit(0);
 } else {
+	// Copy WASM for dev mode too
+	copyFileSync(
+		"node_modules/mediainfo.js/dist/MediaInfoModule.wasm",
+		"MediaInfoModule.wasm"
+	);
 	await context.watch();
 }

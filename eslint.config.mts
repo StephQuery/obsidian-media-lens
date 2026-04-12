@@ -12,8 +12,8 @@ export default tseslint.config(
 			parserOptions: {
 				projectService: {
 					allowDefaultProject: [
-						'eslint.config.js',
-						'manifest.json'
+						'eslint.config.mts',
+						'manifest.json',
 					]
 				},
 				tsconfigRootDir: import.meta.dirname,
@@ -22,11 +22,21 @@ export default tseslint.config(
 		},
 	},
 	...obsidianmd.configs.recommended,
+	{
+		plugins: { obsidianmd },
+		rules: {
+			"obsidianmd/ui/sentence-case": ["error", {
+				ignoreRegex: ["^[a-z0-9./-]+$"],
+			}],
+		},
+	},
 	globalIgnores([
 		"node_modules",
 		"dist",
+		"tests",
+		"vitest.config.ts",
 		"esbuild.config.mjs",
-		"eslint.config.js",
+		"eslint.config.mts",
 		"version-bump.mjs",
 		"versions.json",
 		"main.js",

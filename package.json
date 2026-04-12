@@ -1,29 +1,33 @@
 {
-	"name": "obsidian-sample-plugin",
+	"name": "obsidian-media-lens",
 	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"description": "Inspect and compare metadata for images, video, audio, and subtitle files in Obsidian.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
-		"lint": "eslint ."
+		"lint": "eslint .",
+		"test": "vitest run",
+		"test:watch": "vitest"
 	},
 	"keywords": [],
 	"license": "MIT",
 	"devDependencies": {
-		"@types/node": "^16.11.6",
-		"esbuild": "0.25.5",
+		"@eslint/js": "9.30.1",
+		"@types/node": "^22.19.17",
+		"esbuild": "^0.28.0",
 		"eslint-plugin-obsidianmd": "0.1.9",
 		"globals": "14.0.0",
+		"jiti": "2.6.1",
 		"tslib": "2.4.0",
 		"typescript": "^5.8.3",
 		"typescript-eslint": "8.35.1",
-		"@eslint/js": "9.30.1",
-		"jiti": "2.6.1"
+		"vitest": "^4.1.4"
 	},
 	"dependencies": {
+		"mediainfo.js": "^0.3.7",
 		"obsidian": "latest"
 	}
 }
