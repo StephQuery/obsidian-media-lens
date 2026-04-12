@@ -77,7 +77,9 @@ export class WipeModal extends Modal {
 
 		await this.renderWipeView(contentEl);
 		this.renderTransport(contentEl);
-		log("onOpen: complete");
+		log("onOpen: waiting for both videos to buffer");
+		await this.waitForBothReady();
+		log("onOpen: complete, videos ready");
 	}
 
 	onClose() {
@@ -153,8 +155,18 @@ export class WipeModal extends Modal {
 		}
 	}
 
+	private loadingOverlay: HTMLElement | null = null;
+	private transportButtons: HTMLButtonElement[] = [];
+	private seekInput: HTMLInputElement | null = null;
+
 	private async renderWipeView(parent: HTMLElement) {
 		const viewport = parent.createDiv({ cls: "media-lens-wipe-viewport" });
+
+		// Loading overlay — shown until both videos are ready
+		this.loadingOverlay = viewport.createDiv({ cls: "media-lens-wipe-loading" });
+		const spinner = this.loadingOverlay.createDiv({ cls: "media-lens-wipe-spinner" });
+		setIcon(spinner, "loader-2");
+		this.loadingOverlay.createEl("span", { text: "Loading videos…", cls: "media-lens-wipe-loading-text" });
 
 		log(`renderWipeView: preparing URLs for A="${this.fileA.name}" B="${this.fileB.name}"`);
 		const [urlA, urlB] = await Promise.all([
@@ -350,7 +362,7 @@ export class WipeModal extends Modal {
 		this.renderMuteBtn(muteRow, vidA, "Mute A");
 		this.renderMuteBtn(muteRow, vidB, "Mute B");
 
-		// Controls row
+		// Controls row — all buttons start disabled until videos are ready
 		const controls = transport.createDiv({ cls: "media-lens-wipe-controls" });
 
 		const skipBack = this.makeBtn(controls, "rewind", "Back 10 seconds");
@@ -361,6 +373,14 @@ export class WipeModal extends Modal {
 		const skipFwd = this.makeBtn(controls, "fast-forward", "Forward 10 seconds");
 
 		const captureBtn = this.makeBtn(controls, "camera", "Capture frames");
+
+		// Disable all transport until videos are loaded
+		this.transportButtons = [skipBack, frameBack, playPause, frameFwd, skipFwd, captureBtn];
+		for (const btn of this.transportButtons) {
+			btn.disabled = true;
+		}
+		seekInput.disabled = true;
+		this.seekInput = seekInput;
 
 		const updatePlayIcon = () => {
 			if (ppIcon) {
@@ -412,6 +432,25 @@ export class WipeModal extends Modal {
 		});
 
 		log("renderTransport: complete");
+	}
+
+	private async waitForBothReady() {
+		if (!this.vidA || !this.vidB) return;
+		await Promise.all([
+			this.waitForReadyState(this.vidA, 4, "A"),
+			this.waitForReadyState(this.vidB, 4, "B"),
+		]);
+		// Remove loading overlay
+		if (this.loadingOverlay) {
+			this.loadingOverlay.remove();
+			this.loadingOverlay = null;
+		}
+		// Enable transport controls
+		for (const btn of this.transportButtons) {
+			btn.disabled = false;
+		}
+		if (this.seekInput) this.seekInput.disabled = false;
+		log("waitForBothReady: videos ready, UI enabled");
 	}
 
 	private async syncPlay(vidA: HTMLVideoElement, vidB: HTMLVideoElement) {

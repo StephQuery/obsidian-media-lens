@@ -14,63 +14,37 @@ export interface DriftController {
 	stop(): void;
 }
 
+/**
+ * Event-driven drift correction. Listens to vidA's `timeupdate` (~4Hz from
+ * the browser) and snaps vidB to match when drift exceeds a threshold.
+ * No RAF loop, no playbackRate changes — just a periodic hard seek when needed.
+ */
 export function createDriftController(
 	vidA: HTMLVideoElement,
 	vidB: HTMLVideoElement,
 	frameDuration: number
 ): DriftController {
-	let raf: number | null = null;
-	let active = false;
-	let frameCount = 0;
+	// Snap threshold: drift must exceed this many frames to trigger correction.
+	// Too low → constant seeking / stutter. Too high → visible desync.
+	const threshold = frameDuration * 3;
 
-	const loop = () => {
-		if (!active || vidA.paused || vidA.ended) {
-			raf = null;
-			active = false;
-			vidB.playbackRate = 1;
-			return;
+	const onTimeUpdate = () => {
+		if (vidB.paused || vidB.ended) return;
+		// Don't correct while either video is buffering
+		if (vidA.readyState < 3 || vidB.readyState < 3) return;
+
+		const drift = vidB.currentTime - vidA.currentTime;
+		if (Math.abs(drift) > threshold) {
+			vidB.currentTime = vidA.currentTime;
 		}
-
-		frameCount++;
-
-		// Only check drift every 5th frame to reduce CPU
-		if (frameCount % 5 === 0 && !vidB.ended && !vidB.paused) {
-			// Skip corrections when either video is buffering (readyState < 3 = HAVE_FUTURE_DATA)
-			if (vidA.readyState < 3 || vidB.readyState < 3) {
-				vidB.playbackRate = 1;
-			} else {
-				const drift = vidB.currentTime - vidA.currentTime;
-				if (Math.abs(drift) > 3) {
-					// Large drift — hard seek
-					vidB.currentTime = vidA.currentTime;
-					vidB.playbackRate = 1;
-				} else if (Math.abs(drift) > frameDuration * 3) {
-					// Moderate drift — gentle rate adjustment
-					vidB.playbackRate = drift > 0 ? 0.97 : 1.03;
-				} else {
-					vidB.playbackRate = 1;
-				}
-			}
-		}
-
-		raf = requestAnimationFrame(loop);
 	};
 
 	return {
 		start() {
-			if (!active) {
-				active = true;
-				frameCount = 0;
-				raf = requestAnimationFrame(loop);
-			}
+			vidA.addEventListener("timeupdate", onTimeUpdate);
 		},
 		stop() {
-			active = false;
-			if (raf !== null) {
-				cancelAnimationFrame(raf);
-				raf = null;
-			}
-			vidB.playbackRate = 1;
+			vidA.removeEventListener("timeupdate", onTimeUpdate);
 		},
 	};
 }
