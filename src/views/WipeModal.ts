@@ -1,7 +1,8 @@
 import { Modal, normalizePath, Notice, setIcon } from "obsidian";
 import type MediaLensPlugin from "../main";
-import { createDriftController, formatTimestamp, isVideoReady, type DriftController } from "../utils/video-sync";
+import { formatTimestamp, isVideoReady } from "../utils/video-sync";
 import type { MediaCategory } from "../utils/media";
+import { renderSyncTransport, type SyncTransportResult } from "./sync-transport";
 
 const TEMP_DIR = ".media-lens-temp";
 
@@ -53,7 +54,7 @@ export class WipeModal extends Modal {
 	private vidA: HTMLVideoElement | null = null;
 	private vidB: HTMLVideoElement | null = null;
 	private objectUrls: string[] = [];
-	private driftController: DriftController | null = null;
+	private transport: SyncTransportResult | null = null;
 	private wipePosition = 50;
 	private documentListeners: Array<{ type: string; handler: EventListener }> = [];
 	private ownedTempPaths = new Set<string>();
@@ -89,7 +90,7 @@ export class WipeModal extends Modal {
 		log("onClose: cleaning up");
 		this.closed = true;
 		this.videoAbort.abort();
-		if (this.driftController) this.driftController.stop();
+		if (this.transport) this.transport.stopDrift();
 		for (const { type, handler } of this.documentListeners) {
 			document.removeEventListener(type, handler);
 		}
@@ -272,169 +273,34 @@ export class WipeModal extends Modal {
 
 		log("renderTransport: building controls");
 		const fps = this.fileA.frameRate;
-		const frameDuration = 1 / fps;
 
-		const transport = parent.createDiv({ cls: "media-lens-wipe-transport" });
-
-		// Seek row
-		const seekRow = transport.createDiv({ cls: "media-lens-wipe-seek" });
-		const timeLabel = seekRow.createSpan({ cls: "media-lens-wipe-time" });
-		const seekInput = seekRow.createEl("input", {
-			cls: "media-lens-wipe-range",
-			attr: { type: "range", min: "0", step: "0.001", value: "0" },
+		const wrapper = parent.createDiv({ cls: "media-lens-wipe-transport" });
+		const result = renderSyncTransport(wrapper, vidA, vidB, fps, {
+			addDocListener: (type, handler) => this.addDocListener(type, handler),
+			log: (msg) => log(msg),
+			logError: (msg, ...args) => logError(msg, ...args),
+			onCapture: () => {
+				log("transport: capture clicked");
+				result.stopDrift();
+				vidA.pause();
+				vidB.pause();
+				void (async () => {
+					await Promise.all([
+						new Promise<void>(r => { if (!vidA.seeking) r(); else vidA.addEventListener("seeked", () => r(), { once: true }); }),
+						new Promise<void>(r => { if (!vidB.seeking) r(); else vidB.addEventListener("seeked", () => r(), { once: true }); }),
+					]);
+					await this.captureWipeComposite(vidA, vidB);
+				})();
+			},
 		});
-		const durationLabel = seekRow.createSpan({ cls: "media-lens-wipe-time" });
-
-		const updateDuration = () => {
-			const durA = vidA.duration || 0;
-			const durB = vidB.duration || 0;
-			const maxDur = Math.max(durA, durB);
-			seekInput.max = String(maxDur);
-			if (durA > 0 && durB > 0 && Math.abs(durA - durB) > 0.5) {
-				durationLabel.textContent = `A ${formatTimestamp(durA)} / B ${formatTimestamp(durB)}`;
-			} else {
-				durationLabel.textContent = formatTimestamp(maxDur);
-			}
-			log(`renderTransport: duration updated (A=${durA.toFixed(1)}s, B=${durB.toFixed(1)}s)`);
-		};
-		vidA.addEventListener("loadedmetadata", updateDuration);
-		vidB.addEventListener("loadedmetadata", updateDuration);
-		updateDuration();
-
-		// Scrub logic (rAF throttled, videos paused during scrub)
-		let scrubbing = false;
-		let wasPlaying = false;
-		let rafId: number | null = null;
-		let scrubTarget: number | null = null;
-
-		const updateTime = () => {
-			if (scrubbing) return;
-			seekInput.value = String(vidA.currentTime);
-			timeLabel.textContent = formatTimestamp(vidA.currentTime);
-		};
-		vidA.addEventListener("timeupdate", updateTime);
-		updateTime();
-
-		const applyScrub = () => {
-			rafId = null;
-			if (scrubTarget === null) return;
-			const t = scrubTarget;
-			scrubTarget = null;
-			vidA.currentTime = t;
-			vidB.currentTime = t;
-			timeLabel.textContent = formatTimestamp(t);
-		};
-
-		const startScrub = () => {
-			scrubbing = true;
-			wasPlaying = !vidA.paused;
-			vidA.pause();
-			vidB.pause();
-			log("transport: scrub started");
-		};
-		seekInput.addEventListener("mousedown", startScrub);
-		seekInput.addEventListener("touchstart", startScrub);
-
-		seekInput.addEventListener("input", () => {
-			scrubTarget = parseFloat(seekInput.value);
-			timeLabel.textContent = formatTimestamp(scrubTarget);
-			if (rafId === null) {
-				rafId = requestAnimationFrame(applyScrub);
-			}
-		});
-
-		const endScrub = () => {
-			if (!scrubbing) return;
-			scrubbing = false;
-			if (rafId !== null) {
-				cancelAnimationFrame(rafId);
-				rafId = null;
-			}
-			scrubTarget = null;
-			const t = parseFloat(seekInput.value);
-			vidA.currentTime = t;
-			vidB.currentTime = t;
-			log(`transport: scrub ended at ${t.toFixed(3)}s`);
-			if (wasPlaying) {
-				void this.syncPlay(vidA, vidB);
-			}
-		};
-		this.addDocListener("mouseup", endScrub);
-		this.addDocListener("touchend", endScrub);
-
-		// Mute row
-		const muteRow = transport.createDiv({ cls: "media-lens-wipe-mute-row" });
-		this.renderMuteBtn(muteRow, vidA, "Mute A");
-		this.renderMuteBtn(muteRow, vidB, "Mute B");
-
-		// Controls row — all buttons start disabled until videos are ready
-		const controls = transport.createDiv({ cls: "media-lens-wipe-controls" });
-
-		const skipBack = this.makeBtn(controls, "rewind", "Back 10 seconds");
-		const frameBack = this.makeBtn(controls, "chevron-left", "Previous frame");
-		const playPause = this.makeBtn(controls, "play", "Play or pause");
-		const ppIcon = playPause.querySelector("span") as HTMLElement;
-		const frameFwd = this.makeBtn(controls, "chevron-right", "Next frame");
-		const skipFwd = this.makeBtn(controls, "fast-forward", "Forward 10 seconds");
-
-		const captureBtn = this.makeBtn(controls, "camera", "Capture frames");
+		this.transport = result;
 
 		// Disable all transport until videos are loaded
-		this.transportButtons = [skipBack, frameBack, playPause, frameFwd, skipFwd, captureBtn];
-		for (const btn of this.transportButtons) {
+		for (const btn of result.buttons) {
 			btn.disabled = true;
 		}
-		seekInput.disabled = true;
-		this.seekInput = seekInput;
-
-		const updatePlayIcon = () => {
-			if (ppIcon) {
-				ppIcon.empty();
-				setIcon(ppIcon, vidA.paused ? "play" : "pause");
-			}
-		};
-		vidA.addEventListener("play", updatePlayIcon);
-		vidA.addEventListener("pause", updatePlayIcon);
-
-		// Play/pause
-		playPause.addEventListener("click", () => {
-			log(`transport: play/pause clicked (paused=${vidA.paused})`);
-			if (vidA.paused) {
-				void this.syncPlay(vidA, vidB);
-			} else {
-				this.syncPause(vidA, vidB);
-			}
-		});
-
-		// Frame step
-		const step = (delta: number) => {
-			this.syncPause(vidA, vidB);
-			const t = Math.max(0, vidA.currentTime + delta);
-			vidA.currentTime = t;
-			vidB.currentTime = t;
-			log(`transport: step delta=${delta.toFixed(4)} → t=${t.toFixed(3)}`);
-		};
-
-		frameBack.addEventListener("click", () => step(-frameDuration));
-		frameFwd.addEventListener("click", () => step(frameDuration));
-		skipBack.addEventListener("click", () => step(-10));
-		skipFwd.addEventListener("click", () => step(10));
-
-		// Capture
-		captureBtn.addEventListener("click", () => {
-			log("transport: capture clicked");
-			captureBtn.disabled = true;
-			void (async () => {
-				this.syncPause(vidA, vidB);
-				await Promise.all([
-					new Promise<void>(r => { if (!vidA.seeking) r(); else vidA.addEventListener("seeked", () => r(), { once: true }); }),
-					new Promise<void>(r => { if (!vidB.seeking) r(); else vidB.addEventListener("seeked", () => r(), { once: true }); }),
-				]);
-				await this.captureWipeComposite(vidA, vidB);
-			})().finally(() => {
-				captureBtn.disabled = false;
-			});
-		});
+		result.seekInput.disabled = true;
+		this.transportButtons = result.buttons;
 
 		log("renderTransport: complete");
 	}
@@ -454,33 +320,8 @@ export class WipeModal extends Modal {
 		for (const btn of this.transportButtons) {
 			btn.disabled = false;
 		}
-		if (this.seekInput) this.seekInput.disabled = false;
+		if (this.transport) this.transport.seekInput.disabled = false;
 		log("waitForBothReady: videos ready, UI enabled");
-	}
-
-	private async syncPlay(vidA: HTMLVideoElement, vidB: HTMLVideoElement) {
-		log(`syncPlay: aligning B to A (t=${vidA.currentTime.toFixed(3)}), waiting for buffer...`);
-		vidB.currentTime = vidA.currentTime;
-		vidB.playbackRate = 1;
-
-		// Wait for both videos to have enough data before starting
-		await Promise.all([
-			this.waitForReadyState(vidA, 3, "A"),
-			this.waitForReadyState(vidB, 3, "B"),
-		]);
-
-		log("syncPlay: both buffered, starting playback");
-		try {
-			await Promise.all([vidA.play(), vidB.play()]);
-			log("syncPlay: both videos playing");
-		} catch (err) {
-			logError("syncPlay: play failed", err);
-		}
-
-		if (!this.driftController) {
-			this.driftController = createDriftController(vidA, vidB, 1 / this.fileA.frameRate);
-		}
-		this.driftController.start();
 	}
 
 	private waitForReadyState(video: HTMLVideoElement, minState: number, label: string): Promise<void> {
@@ -496,15 +337,6 @@ export class WipeModal extends Modal {
 			video.addEventListener("canplay", check, { once: true });
 			video.addEventListener("canplaythrough", check, { once: true });
 		});
-	}
-
-	private syncPause(vidA: HTMLVideoElement, vidB: HTMLVideoElement) {
-		log("syncPause");
-		if (this.driftController) this.driftController.stop();
-		vidA.pause();
-		vidB.pause();
-		vidB.playbackRate = 1;
-		vidB.currentTime = vidA.currentTime;
 	}
 
 	private async captureWipeComposite(vidA: HTMLVideoElement, vidB: HTMLVideoElement) {
@@ -574,34 +406,6 @@ export class WipeModal extends Modal {
 	}
 
 
-	private makeBtn(parent: HTMLElement, icon: string, label: string): HTMLButtonElement {
-		const btn = parent.createEl("button", {
-			cls: "media-lens-wipe-btn",
-			attr: { "aria-label": label },
-		});
-		const iconEl = btn.createSpan();
-		setIcon(iconEl, icon);
-		return btn;
-	}
-
-	private renderMuteBtn(parent: HTMLElement, video: HTMLVideoElement, label: string) {
-		const btn = parent.createEl("button", {
-			cls: "media-lens-wipe-btn media-lens-wipe-mute-btn",
-			attr: { "aria-label": label },
-		});
-		const iconEl = btn.createSpan();
-		btn.createSpan({ text: label });
-		const update = () => {
-			iconEl.empty();
-			setIcon(iconEl, video.muted ? "volume-x" : "volume-2");
-		};
-		update();
-		btn.addEventListener("click", () => {
-			video.muted = !video.muted;
-			log(`mute toggle: ${label} → muted=${video.muted}`);
-			update();
-		});
-	}
 }
 
 export function openWipeModal(

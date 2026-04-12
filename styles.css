@@ -362,6 +362,11 @@
 	color: var(--text-faint);
 }
 
+.media-lens-transport-mute-group {
+	display: flex;
+	gap: var(--size-4-1);
+}
+
 .media-lens-transport-sep {
 	width: 1px;
 	height: 16px;

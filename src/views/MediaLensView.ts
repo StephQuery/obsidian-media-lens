@@ -16,7 +16,8 @@ import { generateSingleNote, generateComparisonNote, generateNoteName } from "..
 import type { NoteCapture } from "../notes/note-generator";
 import { saveNote, copyExternalFileToVault, saveCaptureToVault } from "../notes/note-writer";
 import { openWipeModal } from "./WipeModal";
-import { createDriftController, formatTimestamp, isVideoReady } from "../utils/video-sync";
+import { formatTimestamp, isVideoReady } from "../utils/video-sync";
+import { renderSyncTransport } from "./sync-transport";
 
 export const VIEW_TYPE_MEDIA_LENS = "media-lens-view";
 
@@ -350,7 +351,7 @@ export class MediaLensView extends ItemView {
 		if (this.primaryVideo && this.compareVideo) {
 			this.renderSyncToggle(actionRow);
 		}
-		if (this.primaryFile.category === "video") {
+		if (this.primaryFile.category === "video" && !this.syncEnabled) {
 			this.renderCaptureButton(actionRow);
 		}
 		if (this.primaryFile && this.compareFile && this.primaryFile.category === "video") {
@@ -594,24 +595,6 @@ export class MediaLensView extends ItemView {
 	}
 
 
-	private renderMuteButton(parent: HTMLElement, video: HTMLVideoElement, label?: string) {
-		const btn = parent.createEl("button", {
-			cls: "media-lens-btn-mute",
-			attr: { "aria-label": label ? `Mute ${label}` : "Toggle mute" },
-		});
-		const iconEl = btn.createSpan();
-		if (label) btn.createSpan({ text: label, cls: "media-lens-mute-label" });
-		const updateIcon = () => {
-			iconEl.empty();
-			setIcon(iconEl, video.muted ? "volume-x" : "volume-2");
-		};
-		updateIcon();
-		btn.addEventListener("click", () => {
-			video.muted = !video.muted;
-			updateIcon();
-		});
-	}
-
 	private renderCaptureButton(parent: HTMLElement) {
 		const btn = parent.createEl("button", {
 			cls: "media-lens-btn media-lens-btn-save",
@@ -724,204 +707,19 @@ export class MediaLensView extends ItemView {
 		this.log("renderUnifiedTransport: building synced transport");
 
 		const fps = this.getFrameRate(this.primaryFile);
-		const frameDuration = 1 / fps;
-		const drift = createDriftController(vidA, vidB, frameDuration);
-		this.driftCleanup = () => drift.stop();
-
-		vidA.addEventListener("play", () => {
-			vidB.currentTime = vidA.currentTime;
-			vidB.playbackRate = 1;
-			drift.start();
+		const result = renderSyncTransport(parent, vidA, vidB, fps, {
+			addDocListener: (type, handler) => this.addDocListener(type, handler),
+			log: (msg) => this.log(msg),
+			logError: (msg, ...args) => this.logError(msg, ...args),
+			onCapture: () => {
+				if (this.syncEnabled && this.primaryVideo && this.compareVideo) {
+					void this.captureSyncedFrames(this.primaryVideo, this.compareVideo);
+				} else if (this.primaryVideo) {
+					void this.captureFrame(this.primaryVideo, "primary");
+				}
+			},
 		});
-		vidA.addEventListener("pause", () => drift.stop());
-		vidA.addEventListener("ended", () => drift.stop());
-
-		const bar = parent.createDiv({ cls: "media-lens-transport" });
-
-		// Seek bar
-		const seekRow = bar.createDiv({ cls: "media-lens-transport-seek" });
-		const timeLabel = seekRow.createSpan({ cls: "media-lens-transport-time" });
-		const seekInput = seekRow.createEl("input", {
-			cls: "media-lens-transport-range",
-			attr: { type: "range", min: "0", step: "0.001", value: "0" },
-		});
-		const durationLabel = seekRow.createSpan({ cls: "media-lens-transport-time" });
-
-		const updateDuration = () => {
-			const durA = vidA.duration || 0;
-			const durB = vidB.duration || 0;
-			const maxDur = Math.max(durA, durB);
-			seekInput.max = String(maxDur);
-			if (durA > 0 && durB > 0 && Math.abs(durA - durB) > 0.5) {
-				durationLabel.textContent = `A ${formatTimestamp(durA)} / B ${formatTimestamp(durB)}`;
-			} else {
-				durationLabel.textContent = formatTimestamp(maxDur);
-			}
-		};
-		vidA.addEventListener("loadedmetadata", updateDuration);
-		vidB.addEventListener("loadedmetadata", updateDuration);
-		updateDuration();
-
-		let scrubbing = false;
-		let wasPlaying = false;
-		let rafId: number | null = null;
-		let scrubTarget: number | null = null;
-
-		const updateTime = () => {
-			if (scrubbing) return;
-			seekInput.value = String(vidA.currentTime);
-			timeLabel.textContent = formatTimestamp(vidA.currentTime);
-		};
-		vidA.addEventListener("timeupdate", updateTime);
-		updateTime();
-
-		const applyScrub = () => {
-			rafId = null;
-			if (scrubTarget === null) return;
-			const t = scrubTarget;
-			scrubTarget = null;
-			vidA.currentTime = t;
-			vidB.currentTime = t;
-			timeLabel.textContent = formatTimestamp(t);
-		};
-
-		const startScrub = () => {
-			scrubbing = true;
-			wasPlaying = !vidA.paused;
-			vidA.pause();
-			vidB.pause();
-		};
-		seekInput.addEventListener("mousedown", startScrub);
-		seekInput.addEventListener("touchstart", startScrub);
-
-		seekInput.addEventListener("input", () => {
-			scrubTarget = parseFloat(seekInput.value);
-			timeLabel.textContent = formatTimestamp(scrubTarget);
-			if (rafId === null) {
-				rafId = requestAnimationFrame(applyScrub);
-			}
-		});
-
-		const endScrub = () => {
-			if (!scrubbing) return;
-			scrubbing = false;
-			if (rafId !== null) {
-				cancelAnimationFrame(rafId);
-				rafId = null;
-			}
-			scrubTarget = null;
-			const t = parseFloat(seekInput.value);
-			vidA.currentTime = t;
-			vidB.currentTime = t;
-			if (wasPlaying) {
-				Promise.all([vidA.play(), vidB.play()]).catch(() => { /* playback blocked */ });
-			}
-		};
-		this.addDocListener("mouseup", endScrub);
-		this.addDocListener("touchend", endScrub);
-
-		// Controls row: [Mute A] [Mute B] | [◀◀] [◀ Frame] [⏹] [▶⏸] [Frame ▶] [▶▶]
-		const controls = bar.createDiv({ cls: "media-lens-transport-controls" });
-
-		// Skip back 5s
-		const skipBack = controls.createEl("button", {
-			cls: "media-lens-btn media-lens-btn-secondary media-lens-frame-btn",
-			attr: { "aria-label": "Back 5 seconds" },
-		});
-		const sbIcon = skipBack.createSpan();
-		setIcon(sbIcon, "rewind");
-
-		// Frame back
-		const frameBack = controls.createEl("button", {
-			cls: "media-lens-btn media-lens-btn-secondary media-lens-frame-btn",
-			attr: { "aria-label": "Previous frame" },
-		});
-		const fbIcon = frameBack.createSpan();
-		setIcon(fbIcon, "chevron-left");
-
-		// Stop (reset to 0)
-		const stopBtn = controls.createEl("button", {
-			cls: "media-lens-btn media-lens-btn-secondary media-lens-frame-btn",
-			attr: { "aria-label": "Stop" },
-		});
-		const stopIcon = stopBtn.createSpan();
-		setIcon(stopIcon, "square");
-
-		// Play/pause
-		const playPauseBtn = controls.createEl("button", {
-			cls: "media-lens-btn media-lens-btn-secondary media-lens-transport-play",
-			attr: { "aria-label": "Play or pause" },
-		});
-		const ppIcon = playPauseBtn.createSpan();
-		setIcon(ppIcon, "play");
-
-		// Frame forward
-		const frameFwd = controls.createEl("button", {
-			cls: "media-lens-btn media-lens-btn-secondary media-lens-frame-btn",
-			attr: { "aria-label": "Next frame" },
-		});
-		const ffIcon = frameFwd.createSpan();
-		setIcon(ffIcon, "chevron-right");
-
-		// Skip forward 5s
-		const skipFwd = controls.createEl("button", {
-			cls: "media-lens-btn media-lens-btn-secondary media-lens-frame-btn",
-			attr: { "aria-label": "Forward 5 seconds" },
-		});
-		const sfIcon = skipFwd.createSpan();
-		setIcon(sfIcon, "fast-forward");
-
-		controls.createDiv({ cls: "media-lens-transport-sep" });
-
-		// Mute buttons
-		this.renderMuteButton(controls, vidA, "A");
-		this.renderMuteButton(controls, vidB, "B");
-
-		// Play/pause logic
-		const updatePlayIcon = () => {
-			ppIcon.empty();
-			setIcon(ppIcon, vidA.paused ? "play" : "pause");
-		};
-		vidA.addEventListener("play", updatePlayIcon);
-		vidA.addEventListener("pause", updatePlayIcon);
-
-		playPauseBtn.addEventListener("click", () => {
-			this.log(`syncTransport: play/pause clicked (paused=${vidA.paused})`);
-			if (vidA.paused) {
-				vidB.currentTime = vidA.currentTime;
-				Promise.all([vidA.play(), vidB.play()]).then(() => {
-					this.log("syncTransport: both playing");
-				}).catch((err) => {
-					this.logError("syncTransport: play failed", err);
-				});
-			} else {
-				vidA.pause();
-				vidB.pause();
-				vidB.currentTime = vidA.currentTime;
-			}
-		});
-
-		// Stop — pause and reset to beginning
-		stopBtn.addEventListener("click", () => {
-			vidA.pause();
-			vidB.pause();
-			vidA.currentTime = 0;
-			vidB.currentTime = 0;
-		});
-
-		// Frame stepping & skip
-		const step = (delta: number) => {
-			vidA.pause();
-			vidB.pause();
-			const t = Math.max(0, vidA.currentTime + delta);
-			vidA.currentTime = t;
-			vidB.currentTime = t;
-		};
-		skipBack.addEventListener("click", () => step(-5));
-		frameBack.addEventListener("click", () => step(-frameDuration));
-		frameFwd.addEventListener("click", () => step(frameDuration));
-		skipFwd.addEventListener("click", () => step(5));
-
+		this.driftCleanup = result.stopDrift;
 	}
 
 
@@ -1116,8 +914,8 @@ export class MediaLensView extends ItemView {
 				}
 
 				content = generateComparisonNote(
-					{ name: this.primaryFile.name, source: this.primaryFile.source, category: this.primaryFile.category, vaultPath: primaryPath },
-					{ name: this.compareFile.name, source: this.compareFile.source, category: this.compareFile.category, vaultPath: comparePath },
+					{ name: this.primaryFile.name, source: this.primaryFile.source, category: this.primaryFile.category, vaultPath: primaryPath, textContent: this.getSubtitleText(this.primaryFile) },
+					{ name: this.compareFile.name, source: this.compareFile.source, category: this.compareFile.category, vaultPath: comparePath, textContent: this.getSubtitleText(this.compareFile) },
 					this.primaryFile.sections,
 					this.compareFile.sections,
 					assetsDir,
@@ -1125,7 +923,7 @@ export class MediaLensView extends ItemView {
 				);
 			} else {
 				content = generateSingleNote(
-					{ name: this.primaryFile.name, source: this.primaryFile.source, category: this.primaryFile.category, vaultPath: primaryPath },
+					{ name: this.primaryFile.name, source: this.primaryFile.source, category: this.primaryFile.category, vaultPath: primaryPath, textContent: this.getSubtitleText(this.primaryFile) },
 					this.primaryFile.sections,
 					assetsDir,
 					savedCaptures
