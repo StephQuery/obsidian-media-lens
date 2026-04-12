@@ -1,4 +1,4 @@
-import { ItemView, Notice, setIcon, TFile, WorkspaceLeaf } from "obsidian";
+import { ItemView, normalizePath, Notice, setIcon, TFile, WorkspaceLeaf } from "obsidian";
 import type MediaLensPlugin from "../main";
 import {
 	formatSize,
@@ -20,6 +20,8 @@ import { createDriftController, formatTimestamp, isVideoReady } from "../utils/v
 
 export const VIEW_TYPE_MEDIA_LENS = "media-lens-view";
 
+const TEMP_DIR = ".media-lens-temp";
+
 interface LoadedFile {
 	name: string;
 	path: string;
@@ -28,6 +30,9 @@ interface LoadedFile {
 	buffer: ArrayBuffer;
 	category: MediaCategory;
 	sections: MetadataSection[];
+	fileRef?: File;
+	mediaUrl?: string;
+	tempVaultPath?: string;
 }
 
 export class MediaLensView extends ItemView {
@@ -72,15 +77,37 @@ export class MediaLensView extends ItemView {
 			this.driftRafCleanup = null;
 		}
 		this.removeDocListeners();
+		this.revokeFileMediaUrl(this.primaryFile);
+		this.revokeFileMediaUrl(this.compareFile);
+		await this.removeTempFile(this.primaryFile);
+		await this.removeTempFile(this.compareFile);
 		this.revokeObjectUrls();
 		this.contentEl.empty();
 	}
 
+	private log(msg: string, ...args: unknown[]) {
+		console.log(`[Media Lens] ${msg}`, ...args);
+	}
+
+	private logError(msg: string, ...args: unknown[]) {
+		console.error(`[Media Lens] ${msg}`, ...args);
+	}
+
 	private revokeObjectUrls() {
+		this.log(`revokeObjectUrls: revoking ${this.objectUrls.length} object URLs, ${this.captureStripUrls.length} capture URLs`);
 		for (const url of this.objectUrls) URL.revokeObjectURL(url);
 		this.objectUrls = [];
 		for (const url of this.captureStripUrls) URL.revokeObjectURL(url);
 		this.captureStripUrls = [];
+	}
+
+	private revokeFileMediaUrl(file: LoadedFile | null) {
+		if (!file?.mediaUrl) return;
+		this.log(`revokeFileMediaUrl: revoking mediaUrl for "${file.name}" (source=${file.source})`);
+		if (file.mediaUrl.startsWith("blob:")) {
+			URL.revokeObjectURL(file.mediaUrl);
+		}
+		file.mediaUrl = undefined;
 	}
 
 	private addDocListener(type: string, handler: EventListener) {
@@ -101,7 +128,69 @@ export class MediaLensView extends ItemView {
 		return url;
 	}
 
+	private async getMediaUrl(file: LoadedFile, mimeType: string): Promise<string> {
+		if (file.mediaUrl) {
+			this.log(`getMediaUrl: reusing cached URL for "${file.name}" → ${file.mediaUrl.slice(0, 60)}…`);
+			return file.mediaUrl;
+		}
+		let url: string;
+		let method: string;
+		if (file.source === "vault") {
+			url = this.app.vault.adapter.getResourcePath(normalizePath(file.path));
+			method = "vault resourcePath";
+		} else {
+			// Blob URLs don't support range requests in Electron's app:// origin,
+			// so video decoders can't seek even with fully buffered data.
+			// Write to a temp vault file and use Obsidian's native resource path.
+			const tempPath = await this.writeTempFile(file);
+			url = this.app.vault.adapter.getResourcePath(normalizePath(tempPath));
+			file.tempVaultPath = tempPath;
+			method = `temp vault file → resourcePath (${tempPath})`;
+		}
+		file.mediaUrl = url;
+		this.log(`getMediaUrl: created URL for "${file.name}" via ${method} → ${url.slice(0, 120)}…`);
+		return url;
+	}
+
+	private async writeTempFile(file: LoadedFile): Promise<string> {
+		const tempDir = normalizePath(TEMP_DIR);
+		if (!this.app.vault.getAbstractFileByPath(tempDir)) {
+			this.log(`writeTempFile: creating temp directory "${tempDir}"`);
+			try {
+				await this.app.vault.createFolder(tempDir);
+			} catch {
+				// Folder may already exist from a race or prior run
+			}
+		}
+		const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+		const ext = file.name.split(".").pop()?.toLowerCase() ?? "bin";
+		const tempPath = normalizePath(`${TEMP_DIR}/${id}.${ext}`);
+		this.log(`writeTempFile: writing "${file.name}" (${file.buffer.byteLength} bytes) → "${tempPath}"`);
+		await this.app.vault.createBinary(tempPath, file.buffer);
+		this.log(`writeTempFile: write complete`);
+		return tempPath;
+	}
+
+	private async removeTempFile(file: LoadedFile | null) {
+		if (!file?.tempVaultPath) return;
+		const path = file.tempVaultPath;
+		file.tempVaultPath = undefined;
+		try {
+			const abstractFile = this.app.vault.getAbstractFileByPath(path);
+			if (abstractFile) {
+				this.log(`removeTempFile: deleting "${path}"`);
+				await this.app.vault.delete(abstractFile);
+			}
+		} catch (err) {
+			this.logError(`removeTempFile: failed to delete "${path}"`, err);
+		}
+	}
+
 	clearPrimary() {
+		this.revokeFileMediaUrl(this.primaryFile);
+		this.revokeFileMediaUrl(this.compareFile);
+		void this.removeTempFile(this.primaryFile);
+		void this.removeTempFile(this.compareFile);
 		this.primaryFile = null;
 		this.compareFile = null;
 		this.syncEnabled = false;
@@ -110,12 +199,18 @@ export class MediaLensView extends ItemView {
 	}
 
 	clearCompare() {
+		this.revokeFileMediaUrl(this.compareFile);
+		void this.removeTempFile(this.compareFile);
 		this.compareFile = null;
 		this.captures = [];
 		this.render();
 	}
 
 	clearAll() {
+		this.revokeFileMediaUrl(this.primaryFile);
+		this.revokeFileMediaUrl(this.compareFile);
+		void this.removeTempFile(this.primaryFile);
+		void this.removeTempFile(this.compareFile);
 		this.primaryFile = null;
 		this.compareFile = null;
 		this.syncEnabled = false;
@@ -124,6 +219,7 @@ export class MediaLensView extends ItemView {
 	}
 
 	private render() {
+		this.log(`render: primary="${this.primaryFile?.name ?? "none"}" compare="${this.compareFile?.name ?? "none"}" sync=${this.syncEnabled}`);
 		this.revokeObjectUrls();
 		this.removeDocListeners();
 		if (this.driftRafCleanup) {
@@ -136,27 +232,41 @@ export class MediaLensView extends ItemView {
 		container.empty();
 		container.addClass("media-lens-container");
 
-		if (this.syncEnabled && this.primaryFile && this.compareFile) {
-			this.renderSyncedHeader(container, this.primaryFile, this.compareFile);
+		// Kick off async rendering; capture references to avoid stale state
+		const primaryFile = this.primaryFile;
+		const compareFile = this.compareFile;
+		const syncEnabled = this.syncEnabled;
+
+		void this.renderAsync(container, primaryFile, compareFile, syncEnabled);
+	}
+
+	private async renderAsync(
+		container: HTMLElement,
+		primaryFile: LoadedFile | null,
+		compareFile: LoadedFile | null,
+		syncEnabled: boolean
+	) {
+		if (syncEnabled && primaryFile && compareFile) {
+			this.renderSyncedHeader(container, primaryFile, compareFile);
 			const videoStack = container.createDiv({ cls: "media-lens-synced-stack" });
-			this.renderPreview(videoStack, this.primaryFile, "primary");
-			this.renderPreview(videoStack, this.compareFile, "compare");
+			await this.renderPreview(videoStack, primaryFile, "primary");
+			await this.renderPreview(videoStack, compareFile, "compare");
 		} else {
 			this.renderDropZone(container, "primary");
-			if (this.primaryFile) {
-				this.renderPreview(container, this.primaryFile, "primary");
+			if (primaryFile) {
+				await this.renderPreview(container, primaryFile, "primary");
 			}
 			this.renderDropZone(container, "compare");
-			if (this.compareFile) {
-				this.renderPreview(container, this.compareFile, "compare");
+			if (compareFile) {
+				await this.renderPreview(container, compareFile, "compare");
 			}
 		}
 
-		if (this.primaryFile) {
+		if (primaryFile) {
 			container.createEl("hr", { cls: "media-lens-divider" });
 
 			// Transport (only when synced)
-			if (this.primaryVideo && this.compareVideo && this.syncEnabled) {
+			if (this.primaryVideo && this.compareVideo && syncEnabled) {
 				this.renderUnifiedTransport(container);
 			}
 
@@ -166,10 +276,10 @@ export class MediaLensView extends ItemView {
 			if (this.primaryVideo && this.compareVideo) {
 				this.renderSyncToggle(actionRow);
 			}
-			if (this.primaryFile.category === "video") {
+			if (primaryFile.category === "video") {
 				this.renderCaptureButton(actionRow);
 			}
-			if (this.primaryFile && this.compareFile && this.primaryFile.category === "video") {
+			if (primaryFile && compareFile && primaryFile.category === "video") {
 				this.renderWipeButton(actionRow);
 			}
 			this.renderSaveButton(actionRow);
@@ -178,10 +288,10 @@ export class MediaLensView extends ItemView {
 			this.renderCaptureStrip(container);
 		}
 
-		if (this.primaryFile && this.compareFile) {
-			this.renderComparison(container, this.primaryFile, this.compareFile);
-		} else if (this.primaryFile) {
-			this.renderSections(container, this.primaryFile.sections);
+		if (primaryFile && compareFile) {
+			this.renderComparison(container, primaryFile, compareFile);
+		} else if (primaryFile) {
+			this.renderSections(container, primaryFile.sections);
 		} else {
 			const hint = container.createDiv({ cls: "media-lens-hint" });
 			hint.createEl("span", {
@@ -311,7 +421,7 @@ export class MediaLensView extends ItemView {
 		});
 	}
 
-	private renderPreview(parent: HTMLElement, file: LoadedFile, slot: "primary" | "compare") {
+	private async renderPreview(parent: HTMLElement, file: LoadedFile, slot: "primary" | "compare") {
 		const wrapper = parent.createDiv({ cls: "media-lens-preview" });
 		const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
 		const mime = getMimeType(ext, file.category);
@@ -342,30 +452,40 @@ export class MediaLensView extends ItemView {
 				break;
 			}
 			case "video": {
-				const url = this.createObjectUrl(file.buffer, mime);
-				const hideControls = this.syncEnabled && this.primaryFile !== null && this.compareFile !== null;
-				const videoAttrs: Record<string, string> = { src: url, preload: "metadata" };
-				if (!hideControls) videoAttrs.controls = "true";
+				const url = await this.getMediaUrl(file, mime);
+				this.log(`renderPreview[${slot}]: "${file.name}" url=${url.slice(0, 120)}`);
 				const video = wrapper.createEl("video", {
 					cls: "media-lens-preview-video",
-					attr: videoAttrs,
+					attr: { src: url, controls: "true" },
+				});
+				video.muted = true;
+				video.addEventListener("loadstart", () => this.log(`video[${slot}]: loadstart`));
+				video.addEventListener("loadedmetadata", () => this.log(`video[${slot}]: loadedmetadata (${video.videoWidth}x${video.videoHeight}, ${video.duration.toFixed(1)}s)`));
+				video.addEventListener("loadeddata", () => this.log(`video[${slot}]: loadeddata (readyState=${video.readyState})`));
+				video.addEventListener("canplay", () => this.log(`video[${slot}]: canplay`));
+				video.addEventListener("canplaythrough", () => this.log(`video[${slot}]: canplaythrough`));
+				video.addEventListener("playing", () => this.log(`video[${slot}]: playing`));
+				video.addEventListener("stalled", () => this.log(`video[${slot}]: stalled (readyState=${video.readyState})`));
+				video.addEventListener("waiting", () => this.log(`video[${slot}]: waiting (readyState=${video.readyState})`));
+				video.addEventListener("suspend", () => this.log(`video[${slot}]: suspend`));
+				video.addEventListener("error", () => {
+					const err = video.error;
+					const msg = err ? `code=${err.code} "${err.message}"` : "unknown";
+					this.logError(`video[${slot}]: error — ${msg}`);
+					new Notice(`Video error: ${msg}`);
 				});
 				if (slot === "primary") {
 					this.primaryVideo = video;
 				} else {
 					this.compareVideo = video;
-					if (hideControls) video.muted = true;
-				}
-				if (!hideControls) {
-					this.renderFrameStepControls(wrapper, video, file, slot);
 				}
 				break;
 			}
 			case "audio": {
-				const url = this.createObjectUrl(file.buffer, mime);
+				const url = await this.getMediaUrl(file, mime);
 				wrapper.createEl("audio", {
 					cls: "media-lens-preview-audio",
-					attr: { src: url, controls: "true", preload: "metadata" },
+					attr: { src: url, controls: "true", preload: "auto" },
 				});
 				break;
 			}
@@ -448,8 +568,8 @@ export class MediaLensView extends ItemView {
 			requestAnimationFrame(() => {
 				openWipeModal(
 				this.plugin,
-				{ name: fileA.name, buffer: fileA.buffer, category: fileA.category, frameRate: this.getFrameRate(fileA) },
-				{ name: fileB.name, buffer: fileB.buffer, category: fileB.category, frameRate: this.getFrameRate(fileB) },
+				{ name: fileA.name, buffer: fileA.buffer, category: fileA.category, frameRate: this.getFrameRate(fileA), fileRef: fileA.fileRef },
+				{ name: fileB.name, buffer: fileB.buffer, category: fileB.category, frameRate: this.getFrameRate(fileB), fileRef: fileB.fileRef },
 				(vidA, vidB, wipeBlob) => {
 					if (wipeBlob) {
 						const time = vidA.currentTime;
@@ -715,125 +835,6 @@ export class MediaLensView extends ItemView {
 			}
 		}
 		return 30; // fallback
-	}
-
-	private renderFrameStepControls(
-		parent: HTMLElement,
-		video: HTMLVideoElement,
-		file: LoadedFile,
-		_slot: "primary" | "compare"
-	) {
-		const fps = this.getFrameRate(file);
-		const frameDuration = 1 / fps;
-
-		const transport = parent.createDiv({ cls: "media-lens-transport" });
-
-		// Seek bar
-		const seekRow = transport.createDiv({ cls: "media-lens-transport-seek" });
-		const timeLabel = seekRow.createSpan({ cls: "media-lens-transport-time" });
-		const seekInput = seekRow.createEl("input", {
-			cls: "media-lens-transport-range",
-			attr: { type: "range", min: "0", step: "0.001", value: "0" },
-		});
-		const durationLabel = seekRow.createSpan({ cls: "media-lens-transport-time" });
-
-		const updateDuration = () => {
-			const dur = video.duration || 0;
-			seekInput.max = String(dur);
-			durationLabel.textContent = formatTimestamp(dur);
-		};
-		video.addEventListener("loadedmetadata", updateDuration);
-		updateDuration();
-
-		let scrubbing = false;
-		let wasPlaying = false;
-
-		const updateTime = () => {
-			if (scrubbing) return;
-			seekInput.value = String(video.currentTime);
-			timeLabel.textContent = formatTimestamp(video.currentTime);
-		};
-		video.addEventListener("timeupdate", updateTime);
-		updateTime();
-
-		seekInput.addEventListener("mousedown", () => {
-			scrubbing = true;
-			wasPlaying = !video.paused;
-			video.pause();
-		});
-		seekInput.addEventListener("touchstart", () => {
-			scrubbing = true;
-			wasPlaying = !video.paused;
-			video.pause();
-		});
-		seekInput.addEventListener("input", () => {
-			const t = parseFloat(seekInput.value);
-			video.currentTime = t;
-			timeLabel.textContent = formatTimestamp(t);
-		});
-		const endScrub = () => {
-			if (!scrubbing) return;
-			scrubbing = false;
-			if (wasPlaying) video.play().catch(() => { /* blocked */ });
-		};
-		this.addDocListener("mouseup", endScrub);
-		this.addDocListener("touchend", endScrub);
-
-		// Controls row
-		const controls = transport.createDiv({ cls: "media-lens-transport-controls" });
-
-		const makeBtn = (icon: string, label: string) => {
-			const btn = controls.createEl("button", {
-				cls: "media-lens-btn media-lens-btn-secondary media-lens-frame-btn",
-				attr: { "aria-label": label },
-			});
-			const el = btn.createSpan();
-			setIcon(el, icon);
-			return btn;
-		};
-
-		const skipBack = makeBtn("rewind", "Back 5 seconds");
-		const frameBack = makeBtn("chevron-left", "Previous frame");
-		const stopBtn = makeBtn("square", "Stop");
-		const playPauseBtn = makeBtn("play", "Play or pause");
-		const ppIcon = playPauseBtn.querySelector("span") as HTMLElement;
-		const frameFwd = makeBtn("chevron-right", "Next frame");
-		const skipFwd = makeBtn("fast-forward", "Forward 5 seconds");
-
-		controls.createDiv({ cls: "media-lens-transport-sep" });
-		this.renderMuteButton(controls, video);
-		controls.createSpan({ text: `${fps} fps`, cls: "media-lens-frame-fps" });
-
-		const updatePlayIcon = () => {
-			if (ppIcon) {
-				ppIcon.empty();
-				setIcon(ppIcon, video.paused ? "play" : "pause");
-			}
-		};
-		video.addEventListener("play", updatePlayIcon);
-		video.addEventListener("pause", updatePlayIcon);
-
-		playPauseBtn.addEventListener("click", () => {
-			if (video.paused) {
-				video.play().catch(() => { /* blocked */ });
-			} else {
-				video.pause();
-			}
-		});
-
-		stopBtn.addEventListener("click", () => {
-			video.pause();
-			video.currentTime = 0;
-		});
-
-		const step = (delta: number) => {
-			video.pause();
-			video.currentTime = Math.max(0, video.currentTime + delta);
-		};
-		skipBack.addEventListener("click", () => step(-5));
-		frameBack.addEventListener("click", () => step(-frameDuration));
-		frameFwd.addEventListener("click", () => step(frameDuration));
-		skipFwd.addEventListener("click", () => step(5));
 	}
 
 	private waitForSeek(video: HTMLVideoElement): Promise<void> {
@@ -1151,25 +1152,29 @@ export class MediaLensView extends ItemView {
 	}
 
 	private async handleDrop(e: DragEvent, slot: "primary" | "compare") {
+		this.log(`handleDrop: slot=${slot}, files=${e.dataTransfer?.files?.length ?? 0}, text="${e.dataTransfer?.getData("text/plain") ?? ""}"`);
 		const droppedFile = e.dataTransfer?.files?.[0];
 		if (droppedFile) {
+			this.log(`handleDrop: external file "${droppedFile.name}" size=${droppedFile.size} type="${droppedFile.type}"`);
 			if (droppedFile.size > MAX_FILE_SIZE) {
 				new Notice(`File too large (${formatSize(droppedFile.size)}). Maximum is ${formatSize(MAX_FILE_SIZE)}.`);
 				return;
 			}
-			await this.loadFile(droppedFile.name, droppedFile.name, await droppedFile.arrayBuffer(), "external", slot);
+			await this.loadFile(droppedFile.name, droppedFile.name, await droppedFile.arrayBuffer(), "external", slot, droppedFile);
 			return;
 		}
 
 		const path = e.dataTransfer?.getData("text/plain");
 		if (path) {
 			const abstractFile = this.app.vault.getAbstractFileByPath(path);
+			this.log(`handleDrop: vault path="${path}" found=${abstractFile instanceof TFile}`);
 			if (abstractFile instanceof TFile) {
 				if (abstractFile.stat.size > MAX_FILE_SIZE) {
 					new Notice(`File too large (${formatSize(abstractFile.stat.size)}). Maximum is ${formatSize(MAX_FILE_SIZE)}.`);
 					return;
 				}
 				const buffer = await this.app.vault.readBinary(abstractFile);
+				this.log(`handleDrop: vault read complete, buffer.byteLength=${buffer.byteLength}`);
 				await this.loadFile(abstractFile.name, abstractFile.path, buffer, "vault", slot);
 			}
 		}
@@ -1192,7 +1197,7 @@ export class MediaLensView extends ItemView {
 			if (file && file.size > MAX_FILE_SIZE) {
 				new Notice(`File too large (${formatSize(file.size)}). Maximum is ${formatSize(MAX_FILE_SIZE)}.`);
 			} else if (file) {
-				void this.loadFile(file.name, file.name, file.arrayBuffer(), "external", slot);
+				void this.loadFile(file.name, file.name, file.arrayBuffer(), "external", slot, file);
 			}
 			cleanup();
 		});
@@ -1208,7 +1213,8 @@ export class MediaLensView extends ItemView {
 		path: string,
 		bufferOrPromise: ArrayBuffer | Promise<ArrayBuffer>,
 		source: "vault" | "external",
-		slot: "primary" | "compare"
+		slot: "primary" | "compare",
+		fileRef?: File
 	) {
 		const category = getCategory(name);
 		if (!category) {
@@ -1225,13 +1231,28 @@ export class MediaLensView extends ItemView {
 		}
 
 		try {
+			this.log(`loadFile: "${name}" slot=${slot} source=${source} category=${category} hasFileRef=${!!fileRef}`);
 			const buffer = await bufferOrPromise;
+			this.log(`loadFile: "${name}" buffer ready, byteLength=${buffer.byteLength}`);
 			const wasmUrl = this.plugin.getWasmUrl();
 			const result = await parseBuffer(buffer, wasmUrl);
+			this.log(`loadFile: "${name}" parse complete, buffer.byteLength after parse=${buffer.byteLength}`);
 			const sections = normalizeTracks(result);
-			this.setFile(slot, { name, path, size: buffer.byteLength, source, buffer, category, sections });
+			this.log(`loadFile: "${name}" sections=${sections.length}`);
+
+			const file: LoadedFile = { name, path, size: buffer.byteLength, source, buffer, category, sections, fileRef };
+
+			// Pre-create the media URL so render doesn't block on I/O
+			if (category === "video" || category === "audio") {
+				const ext = name.split(".").pop()?.toLowerCase() ?? "";
+				const mime = getMimeType(ext, category);
+				await this.getMediaUrl(file, mime);
+			}
+
+			this.log(`loadFile: "${name}" calling setFile`);
+			this.setFile(slot, file);
 		} catch (err) {
-			console.error("Media Lens: parse error", err);
+			this.logError(`loadFile: "${name}" parse error`, err);
 			const msg = err instanceof Error ? err.message : "Unknown error";
 			if (msg.includes("WASM")) {
 				new Notice("Failed to load media parser. Try reloading the plugin.");
@@ -1242,6 +1263,7 @@ export class MediaLensView extends ItemView {
 	}
 
 	private setFile(slot: "primary" | "compare", file: LoadedFile) {
+		this.log(`setFile: slot=${slot} file="${file.name}" primaryMediaUrl="${this.primaryFile?.mediaUrl?.slice(0, 40) ?? "none"}"`);
 		if (slot === "compare" && this.primaryFile) {
 			if (file.category !== this.primaryFile.category) {
 				const expected = getCategoryLabel(this.primaryFile.category);
@@ -1258,6 +1280,7 @@ export class MediaLensView extends ItemView {
 		} else {
 			this.compareFile = file;
 		}
+		this.log(`setFile: about to render. primary="${this.primaryFile?.name ?? "none"}" (mediaUrl=${!!this.primaryFile?.mediaUrl}) compare="${this.compareFile?.name ?? "none"}" (mediaUrl=${!!this.compareFile?.mediaUrl})`);
 		this.render();
 	}
 }

@@ -9,6 +9,7 @@ interface WipeFile {
 	buffer: ArrayBuffer;
 	category: MediaCategory;
 	frameRate: number;
+	fileRef?: File;
 }
 
 type CaptureCallback = (vidA: HTMLVideoElement, vidB: HTMLVideoElement, wipeBlob?: Blob) => void;
@@ -61,9 +62,15 @@ export class WipeModal extends Modal {
 		this.documentListeners.push({ type, handler });
 	}
 
-	private createUrl(buffer: ArrayBuffer, ext: string, category: MediaCategory): string {
-		const mime = getMimeType(ext, category);
-		const url = URL.createObjectURL(new Blob([buffer], { type: mime }));
+	private createUrl(file: WipeFile): string {
+		if (file.fileRef) {
+			const url = URL.createObjectURL(file.fileRef);
+			this.objectUrls.push(url);
+			return url;
+		}
+		const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+		const mime = getMimeType(ext, file.category);
+		const url = URL.createObjectURL(new Blob([file.buffer], { type: mime }));
 		this.objectUrls.push(url);
 		return url;
 	}
@@ -71,20 +78,17 @@ export class WipeModal extends Modal {
 	private renderWipeView(parent: HTMLElement) {
 		const viewport = parent.createDiv({ cls: "media-lens-wipe-viewport" });
 
-		const extA = this.fileA.name.split(".").pop()?.toLowerCase() ?? "";
-		const extB = this.fileB.name.split(".").pop()?.toLowerCase() ?? "";
-
 		// Video B (bottom layer)
 		this.vidB = viewport.createEl("video", {
 			cls: "media-lens-wipe-video media-lens-wipe-video-b",
-			attr: { src: this.createUrl(this.fileB.buffer, extB, this.fileB.category), preload: "auto" },
+			attr: { src: this.createUrl(this.fileB), preload: "auto" },
 		});
 		this.vidB.muted = true; // mute B by default to reduce decode overhead
 
 		// Video A (top layer, clipped)
 		this.vidA = viewport.createEl("video", {
 			cls: "media-lens-wipe-video media-lens-wipe-video-a",
-			attr: { src: this.createUrl(this.fileA.buffer, extA, this.fileA.category), preload: "auto" },
+			attr: { src: this.createUrl(this.fileA), preload: "auto" },
 		});
 
 		// Divider
@@ -416,8 +420,8 @@ export class WipeModal extends Modal {
 
 export function openWipeModal(
 	plugin: MediaLensPlugin,
-	fileA: { name: string; buffer: ArrayBuffer; category: MediaCategory; frameRate: number },
-	fileB: { name: string; buffer: ArrayBuffer; category: MediaCategory; frameRate: number },
+	fileA: { name: string; buffer: ArrayBuffer; category: MediaCategory; frameRate: number; fileRef?: File },
+	fileB: { name: string; buffer: ArrayBuffer; category: MediaCategory; frameRate: number; fileRef?: File },
 	onCapture: CaptureCallback
 ) {
 	new WipeModal(plugin, fileA, fileB, onCapture).open();
