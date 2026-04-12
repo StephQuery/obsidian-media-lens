@@ -40,6 +40,7 @@ const context = await esbuild.context({
 	treeShaking: true,
 	outfile: "main.js",
 	minify: prod,
+	drop: prod ? ["console", "debugger"] : [],
 });
 
 if (prod) {

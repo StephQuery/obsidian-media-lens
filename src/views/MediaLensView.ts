@@ -86,7 +86,7 @@ export class MediaLensView extends ItemView {
 	}
 
 	private log(msg: string, ...args: unknown[]) {
-		console.log(`[Media Lens] ${msg}`, ...args);
+		console.debug(`[Media Lens] ${msg}`, ...args);
 	}
 
 	private logError(msg: string, ...args: unknown[]) {
@@ -179,7 +179,7 @@ export class MediaLensView extends ItemView {
 			const abstractFile = this.app.vault.getAbstractFileByPath(path);
 			if (abstractFile) {
 				this.log(`removeTempFile: deleting "${path}"`);
-				await this.app.vault.delete(abstractFile);
+				await this.app.fileManager.trashFile(abstractFile);
 			}
 		} catch (err) {
 			this.logError(`removeTempFile: failed to delete "${path}"`, err);

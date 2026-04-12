@@ -19,7 +19,7 @@ interface WipeFile {
 type CaptureCallback = (vidA: HTMLVideoElement, vidB: HTMLVideoElement, wipeBlob?: Blob) => void;
 
 function log(msg: string, ...args: unknown[]) {
-	console.log(`[Media Lens][Wipe] ${msg}`, ...args);
+	console.debug(`[Media Lens][Wipe] ${msg}`, ...args);
 }
 
 function logError(msg: string, ...args: unknown[]) {
@@ -146,7 +146,7 @@ export class WipeModal extends Modal {
 			const abstractFile = this.app.vault.getAbstractFileByPath(path);
 			if (abstractFile) {
 				log(`removeTempFile: deleting "${path}"`);
-				await this.app.vault.delete(abstractFile);
+				await this.app.fileManager.trashFile(abstractFile);
 			}
 		} catch (err) {
 			logError(`removeTempFile: failed to delete "${path}"`, err);
@@ -339,7 +339,7 @@ export class WipeModal extends Modal {
 			vidB.currentTime = t;
 			log(`transport: scrub ended at ${t.toFixed(3)}s`);
 			if (wasPlaying) {
-				this.syncPlay(vidA, vidB);
+				void this.syncPlay(vidA, vidB);
 			}
 		};
 		this.addDocListener("mouseup", endScrub);
@@ -375,7 +375,7 @@ export class WipeModal extends Modal {
 		playPause.addEventListener("click", () => {
 			log(`transport: play/pause clicked (paused=${vidA.paused})`);
 			if (vidA.paused) {
-				this.syncPlay(vidA, vidB);
+				void this.syncPlay(vidA, vidB);
 			} else {
 				this.syncPause(vidA, vidB);
 			}
