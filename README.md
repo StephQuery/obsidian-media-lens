@@ -1,90 +1,96 @@
-# Obsidian Sample Plugin
+# Media Lens
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+View detailed metadata for your media files without leaving Obsidian. Drop an image, video, audio, or subtitle file into the sidebar panel to instantly see format details, codec information, resolution, bitrate, duration, and more.
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+Compare two files side by side to spot differences — perfect for reviewing exports, checking transcodes, or auditing deliverables.
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open modal (simple)" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+## Features
 
-## First time developing plugins?
+### Inspect any media file
+Drop a file into the sidebar or browse from your file system. Media Lens parses the file locally and displays organized metadata in collapsible sections (General, Video, Audio, Text, Image).
 
-Quick starting guide for new plugin devs:
+**Supported formats:** MP4, MOV, MKV, AVI, WebM, JPEG, PNG, GIF, WebP, TIFF, BMP, SVG, MP3, FLAC, WAV, AAC, OGG, SRT, VTT, ASS, and many more.
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+### Compare two files
+Load a second file of the same type to see a side-by-side metadata comparison with differences highlighted. Useful for comparing original vs compressed, different export settings, or before/after edits.
 
-## Releasing new releases
+### Synced video playback
+Compare two video encodes with synchronized playback. A unified transport bar controls both videos — scrub, play/pause, step frame-by-frame, skip forward/back, and mute each player independently.
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+### Split view
+Open a full-screen modal that overlays both videos with a draggable vertical divider. Drag the divider to reveal more of either source — the standard technique for visual quality comparison.
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+### Frame capture
+Grab screenshots from video players at any point. In synced mode, both players are aligned to the exact same frame before capturing. Split view captures a composite showing both sources split at the divider (labeled A|B).
 
-## Adding your plugin to the community plugin list
+### Save as note
+Persist any inspection or comparison as a markdown note in your vault. Notes include embedded media, captured frame screenshots, and metadata tables organized by section. Auto-named with timestamps and auto-incremented to avoid overwrites.
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+### Media previews
+Images render inline. Videos and audio files get playback controls. Subtitles show a text preview.
 
-## How to use
+### Privacy
+All processing happens locally. No data is sent to any server.
 
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `npm i` or `yarn` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
+## Use Cases
 
-## Manually installing the plugin
+- **Video QC** — compare encodes, verify codec settings, check bitrate, resolution, and HDR metadata
+- **Photography** — view EXIF data, camera settings, GPS coordinates
+- **Audio** — inspect ID3 tags, check sample rate, bitrate, and channel layout
+- **Subtitles** — verify format, cue count, and duration
+- **Archival** — catalog and document media file properties
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+## Installation
 
-## Improve code quality with eslint
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- This project already has eslint preconfigured, you can invoke a check by running`npm run lint`
-- Together with a custom eslint [plugin](https://github.com/obsidianmd/eslint-plugin) for Obsidan specific code guidelines.
-- A GitHub action is preconfigured to automatically lint every commit on all branches.
+### Community Plugins
 
-## Funding URL
+1. Open **Settings → Community Plugins → Browse**
+2. Search for **Media Lens**
+3. Click **Install**, then **Enable**
 
-You can include funding URLs where people who use your plugin can financially support it.
+### Manual
 
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
+1. Download `main.js`, `styles.css`, `manifest.json`, and `MediaInfoModule.wasm` from the [latest release](https://github.com/StephQuery/obsidian-media-lens/releases)
+2. Create a folder: `your-vault/.obsidian/plugins/media-lens/`
+3. Copy the downloaded files into that folder
+4. Enable the plugin in **Settings → Community Plugins**
 
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
+## Usage
+
+1. Click the film strip icon in the left ribbon, or run the **Show panel** command
+2. Drag a media file into the drop zone, or click **Browse files**
+3. Metadata appears in collapsible sections below the preview
+4. Load a second file of the same type to compare
+5. Click **Sync playback** to link both video players
+6. Click **Split view** to open the full-screen visual comparison
+7. Click the camera icon to capture frames
+8. Click **Save as note** to persist everything as a markdown note
+
+## Compatibility
+
+- **Desktop:** Full support (macOS, Windows, Linux)
+- **Mobile:** Not recommended — WASM loading and video playback may have limited support on mobile devices
+- **Minimum Obsidian version:** 0.15.0
+
+## Support
+
+Found a bug or have a feature request? [Open an issue on GitHub](https://github.com/StephQuery/obsidian-media-lens/issues).
+
+## Development
+
+```bash
+npm install
+npm run dev        # watch mode
+npm run build      # production build
+npm run lint       # eslint
+npm test           # vitest
+npm run test:watch # vitest watch mode
 ```
 
-If you have multiple URLs, you can also do:
+## License
 
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
-```
+[0-BSD](LICENSE)
 
-## API Documentation
+---
 
-See https://docs.obsidian.md
+Uses [mediainfo.js](https://github.com/buzz/mediainfo.js) for media file parsing.

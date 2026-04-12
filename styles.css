@@ -1,8 +1,649 @@
-/*
+/* ── Container ── */
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+.media-lens-container {
+	padding: var(--size-4-3);
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-3);
+}
 
-If your plugin does not need CSS, delete this file.
+/* ── Synced Layout ── */
 
-*/
+.media-lens-synced-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	padding: var(--size-4-2) var(--size-4-3);
+	background: var(--background-secondary);
+	border-radius: var(--radius-m);
+}
+
+.media-lens-synced-labels {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-1);
+	min-width: 0;
+}
+
+.media-lens-synced-label {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-1);
+	min-width: 0;
+}
+
+.media-lens-synced-badge {
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+	color: var(--text-muted);
+	background: var(--background-modifier-hover);
+	border-radius: var(--radius-s);
+	padding: 0 var(--size-2-2);
+	flex-shrink: 0;
+}
+
+.media-lens-synced-name {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-normal);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.media-lens-synced-size {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+	flex-shrink: 0;
+}
+
+/* When synced, both video zones stack tightly */
+.media-lens--synced .media-lens-zone .media-lens-preview {
+	border-radius: var(--radius-s);
+}
+
+/* ── Drop Zone ── */
+
+.media-lens-drop-zone {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: var(--size-4-2);
+	padding: var(--size-4-4) var(--size-4-3);
+	border: 2px dashed var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	cursor: default;
+	transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.media-lens-drop-zone--disabled {
+	opacity: 0.4;
+	pointer-events: none;
+}
+
+.media-lens-drop-zone--over {
+	border-color: var(--interactive-accent);
+	background-color: var(--background-modifier-hover);
+}
+
+.media-lens-drop-icon {
+	color: var(--text-faint);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.media-lens-drop-label {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	text-align: center;
+}
+
+.media-lens-drop-actions {
+	display: flex;
+	gap: var(--size-4-2);
+}
+
+/* ── Buttons ── */
+
+.media-lens-btn {
+	font-size: var(--font-ui-smaller);
+	padding: var(--size-2-2) var(--size-4-2);
+	border-radius: var(--radius-s);
+	cursor: pointer;
+	border: none;
+	transition: background-color 100ms ease;
+}
+
+.media-lens-btn-secondary {
+	color: var(--text-muted);
+	background: var(--background-modifier-hover);
+}
+
+.media-lens-btn-secondary:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-border);
+}
+
+/* ── File Header (loaded state) ── */
+
+.media-lens-file-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: var(--size-4-2) var(--size-4-3);
+	background: var(--background-secondary);
+	border-radius: var(--radius-m);
+}
+
+.media-lens-file-info {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-1);
+	min-width: 0;
+}
+
+.media-lens-file-name {
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-semibold);
+	color: var(--text-normal);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.media-lens-file-size {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+}
+
+.media-lens-btn-clear {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	border-radius: var(--radius-s);
+	background: transparent;
+	color: var(--text-faint);
+	cursor: pointer;
+	transition: color 100ms ease, background-color 100ms ease;
+}
+
+.media-lens-btn-clear:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-hover);
+}
+
+/* ── Divider ── */
+
+.media-lens-divider {
+	border: none;
+	border-top: 1px solid var(--background-modifier-border);
+	margin: 0;
+}
+
+/* ── Action Row ── */
+
+.media-lens-action-row {
+	display: flex;
+	gap: var(--size-4-2);
+	flex-wrap: wrap;
+}
+
+/* ── Action Buttons ── */
+
+.media-lens-btn-save {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-1);
+	padding: var(--size-2-2) var(--size-4-3);
+	font-size: var(--font-ui-smaller);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	cursor: pointer;
+	color: var(--text-muted);
+	background: transparent;
+	transition: color 100ms ease, border-color 100ms ease;
+}
+
+.media-lens-btn-save:hover {
+	color: var(--text-normal);
+	border-color: var(--text-muted);
+}
+
+.media-lens-btn-save:disabled {
+	opacity: 0.5;
+	pointer-events: none;
+}
+
+/* ── Mute Button ── */
+
+.media-lens-btn-mute {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--size-2-1);
+	padding: var(--size-2-2) var(--size-4-1);
+	border: none;
+	border-radius: var(--radius-s);
+	background: var(--background-modifier-hover);
+	color: var(--text-muted);
+	cursor: pointer;
+	font-size: var(--font-ui-smaller);
+	transition: color 100ms ease, background-color 100ms ease;
+}
+
+.media-lens-btn-mute:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-border);
+}
+
+/* ── Unified Transport ── */
+
+.media-lens-transport {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-1);
+	padding: var(--size-4-2) 0;
+}
+
+.media-lens-transport-seek {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-1);
+}
+
+.media-lens-transport-range {
+	flex: 1;
+	height: 4px;
+	cursor: pointer;
+	accent-color: var(--interactive-accent);
+}
+
+.media-lens-transport-time {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	min-width: 45px;
+	text-align: center;
+}
+
+.media-lens-transport-controls {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--size-4-1);
+	flex-wrap: wrap;
+}
+
+/* ── Capture Strip ── */
+
+.media-lens-capture-strip {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-1);
+}
+
+.media-lens-capture-label {
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+	color: var(--text-muted);
+}
+
+.media-lens-capture-list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-1);
+}
+
+.media-lens-capture-item {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	padding: var(--size-2-1);
+	background: var(--background-secondary);
+	border-radius: var(--radius-s);
+}
+
+.media-lens-capture-thumb {
+	width: 48px;
+	height: 32px;
+	object-fit: cover;
+	border-radius: var(--radius-s);
+	flex-shrink: 0;
+}
+
+.media-lens-capture-info {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	min-width: 0;
+	flex: 1;
+}
+
+.media-lens-capture-filename {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-normal);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.media-lens-capture-time {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+}
+
+/* ── Frame Stepping ── */
+
+.media-lens-frame-btn {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-1);
+	font-size: var(--font-ui-smaller);
+}
+
+.media-lens-transport-mute-group {
+	display: flex;
+	gap: var(--size-4-1);
+}
+
+.media-lens-transport-sep {
+	width: 1px;
+	height: 16px;
+	background: var(--background-modifier-border);
+	margin: 0 var(--size-2-1);
+}
+
+.media-lens-mute-label {
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+}
+
+/* ── Sync Active State ── */
+
+.media-lens-btn-sync--active {
+	color: var(--text-normal);
+	background: var(--background-modifier-hover);
+	border-color: var(--text-muted);
+}
+
+.media-lens-btn-sync--active:hover {
+	background: var(--background-modifier-border);
+}
+
+/* ── Media Preview ── */
+
+.media-lens-preview {
+	border-radius: var(--radius-m);
+}
+
+.media-lens-preview-img {
+	width: 100%;
+	max-height: 200px;
+	object-fit: contain;
+	display: block;
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+}
+
+.media-lens-preview-video {
+	width: 100%;
+	display: block;
+	border-radius: var(--radius-m);
+}
+
+.media-lens-preview-audio {
+	width: 100%;
+	display: block;
+}
+
+.media-lens-preview-text {
+	max-height: 120px;
+	overflow: auto;
+	padding: var(--size-4-2);
+	background: var(--background-secondary);
+	border-radius: var(--radius-m);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	white-space: pre-wrap;
+	word-break: break-word;
+	margin: 0;
+}
+
+/* ── Utility ── */
+
+.media-lens-hidden {
+	display: none;
+}
+
+/* ── Wipe Modal ── */
+
+.media-lens-wipe-modal {
+	width: 90vw;
+	max-width: 1200px;
+	height: 85vh;
+}
+
+.media-lens-wipe-modal .modal-content {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: 0;
+}
+
+.media-lens-wipe-viewport {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	background: var(--background-primary-alt);
+	overflow: hidden;
+	cursor: col-resize;
+}
+
+.media-lens-wipe-video {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.media-lens-wipe-video-a {
+	z-index: 2;
+	clip-path: var(--wipe-clip, inset(0 50% 0 0));
+}
+
+.media-lens-wipe-video-b {
+	z-index: 1;
+}
+
+/* ── Wipe Loading Overlay ── */
+
+.media-lens-wipe-loading {
+	position: absolute;
+	inset: 0;
+	z-index: 10;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: var(--size-4-2);
+	background: var(--background-primary-alt);
+}
+
+.media-lens-wipe-loading-text {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+}
+
+.media-lens-wipe-divider {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: var(--wipe-pos, 50%);
+	width: 2px;
+	background: var(--interactive-accent);
+	z-index: 3;
+	pointer-events: none;
+	box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+}
+
+.media-lens-wipe-label {
+	position: absolute;
+	top: var(--size-4-2);
+	z-index: 4;
+	padding: var(--size-2-1) var(--size-4-2);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+	color: white;
+	background: rgba(0, 0, 0, 0.5);
+	border-radius: var(--radius-s);
+	pointer-events: none;
+}
+
+.media-lens-wipe-label-a {
+	right: var(--wipe-label-a, 52%);
+}
+
+.media-lens-wipe-label-b {
+	left: var(--wipe-label-b, 52%);
+}
+
+/* Transport */
+
+.media-lens-wipe-transport {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-1);
+	padding: var(--size-4-2) var(--size-4-3);
+	background: var(--background-secondary);
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+/* ── Muted Text ── */
+
+.media-lens-muted {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+/* ── Hint ── */
+
+.media-lens-hint {
+	text-align: center;
+	padding: var(--size-4-2) 0;
+}
+
+.media-lens-hint span {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+}
+
+/* ── Metadata Sections ── */
+
+.media-lens-section {
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.media-lens-section:last-child {
+	border-bottom: none;
+}
+
+.media-lens-section-header {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-1);
+	padding: var(--size-4-2) 0;
+	cursor: pointer;
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-semibold);
+	user-select: none;
+}
+
+.media-lens-section-header:hover {
+	color: var(--text-accent);
+}
+
+.media-lens-section-chevron {
+	display: flex;
+	align-items: center;
+	transition: transform 150ms ease;
+}
+
+.media-lens-section-chevron--collapsed {
+	transform: rotate(-90deg);
+}
+
+.media-lens-section-body {
+	padding-bottom: var(--size-4-2);
+}
+
+.media-lens-section-body--collapsed {
+	display: none;
+}
+
+.media-lens-field {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: var(--size-4-2);
+	padding: var(--size-2-1) 0;
+}
+
+.media-lens-field-key {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	flex-shrink: 0;
+}
+
+.media-lens-field-value {
+	color: var(--text-normal);
+	font-size: var(--font-ui-smaller);
+	text-align: right;
+	word-break: break-all;
+	min-width: 0;
+}
+
+/* ── Comparison View ── */
+
+.media-lens-compare-row {
+	display: grid;
+	grid-template-columns: 1fr 1fr 1fr;
+	gap: var(--size-4-1);
+	padding: var(--size-2-1) 0;
+	font-size: var(--font-ui-smaller);
+}
+
+.media-lens-compare-header {
+	font-weight: var(--font-semibold);
+	color: var(--text-muted);
+	border-bottom: 1px solid var(--background-modifier-border);
+	padding-bottom: var(--size-4-1);
+	margin-bottom: var(--size-2-1);
+}
+
+.media-lens-compare-key {
+	color: var(--text-muted);
+}
+
+.media-lens-compare-val {
+	color: var(--text-normal);
+	word-break: break-all;
+}
+
+.media-lens-compare-row--diff {
+	background: var(--background-modifier-hover);
+	border-radius: var(--radius-s);
+	padding-left: var(--size-4-1);
+	padding-right: var(--size-4-1);
+}
+
+.media-lens-compare-row--diff .media-lens-compare-val {
+	font-weight: var(--font-semibold);
+}

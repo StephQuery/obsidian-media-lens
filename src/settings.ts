@@ -1,36 +1,54 @@
-import {App, PluginSettingTab, Setting} from "obsidian";
-import MyPlugin from "./main";
+import { App, PluginSettingTab, Setting } from "obsidian";
+import type MediaLensPlugin from "./main";
 
-export interface MyPluginSettings {
-	mySetting: string;
+export interface MediaLensSettings {
+	saveNotesDirectory: string;
+	externalAssetsDirectory: string;
 }
 
-export const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
-}
+export const DEFAULT_SETTINGS: MediaLensSettings = {
+	saveNotesDirectory: "media-lens",
+	externalAssetsDirectory: "media-lens/assets",
+};
 
-export class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+export class MediaLensSettingTab extends PluginSettingTab {
+	plugin: MediaLensPlugin;
 
-	constructor(app: App, plugin: MyPlugin) {
+	constructor(app: App, plugin: MediaLensPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
 
 	display(): void {
-		const {containerEl} = this;
-
+		const { containerEl } = this;
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Settings #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
+			.setName("Save notes directory")
+			.setDesc("The vault folder where inspection notes are saved")
+			.addText((text) =>
+				text
+					.setPlaceholder("media-lens")
+					.setValue(this.plugin.settings.saveNotesDirectory)
+					.onChange(async (value) => {
+						this.plugin.settings.saveNotesDirectory = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("External file assets directory")
+			.setDesc(
+				"Vault folder where external files are copied when saving a note"
+			)
+			.addText((text) =>
+				text
+					.setPlaceholder("media-lens/assets")
+					.setValue(this.plugin.settings.externalAssetsDirectory)
+					.onChange(async (value) => {
+						this.plugin.settings.externalAssetsDirectory = value;
+						await this.plugin.saveSettings();
+					})
+			);
 	}
 }
