@@ -96,9 +96,8 @@ export class WipeModal extends Modal {
 		const labelB = viewport.createDiv({ cls: "media-lens-wipe-label media-lens-wipe-label-b" });
 		labelB.createSpan({ text: "B" });
 
-		// Wipe drag — update clip-path and divider position
+		// Wipe drag — update CSS variables that drive clip-path and divider position
 		let dragging = false;
-		let cachedRect: DOMRect | null = null;
 
 		const updateWipe = (pct: number) => {
 			const clamped = Math.max(0, Math.min(100, pct));
@@ -116,8 +115,9 @@ export class WipeModal extends Modal {
 		let wipePending = false;
 		let wipeLatest = 50;
 		const onMove = (clientX: number) => {
-			if (!dragging || !cachedRect) return;
-			wipeLatest = ((clientX - cachedRect.left) / cachedRect.width) * 100;
+			if (!dragging) return;
+			const rect = viewport.getBoundingClientRect();
+			wipeLatest = ((clientX - rect.left) / rect.width) * 100;
 			if (!wipePending) {
 				wipePending = true;
 				requestAnimationFrame(() => {
@@ -127,27 +127,25 @@ export class WipeModal extends Modal {
 			}
 		};
 
-		const startDrag = (clientX: number) => {
+		viewport.addEventListener("mousedown", (e) => {
 			dragging = true;
-			cachedRect = viewport.getBoundingClientRect();
-			onMove(clientX);
-		};
-
-		viewport.addEventListener("mousedown", (e) => startDrag(e.clientX));
+			onMove(e.clientX);
+		});
 		this.addDocListener("mousemove", (e) => onMove((e as MouseEvent).clientX));
-		this.addDocListener("mouseup", () => { dragging = false; cachedRect = null; });
+		this.addDocListener("mouseup", () => { dragging = false; });
 
 		viewport.addEventListener("touchstart", (e: TouchEvent) => {
+			dragging = true;
 			e.preventDefault();
 			const touch = e.touches[0];
-			if (touch) startDrag(touch.clientX);
+			if (touch) onMove(touch.clientX);
 		}, { passive: false });
 		this.addDocListener("touchmove", (e) => {
 			if (dragging) e.preventDefault();
 			const touch = (e as TouchEvent).touches[0];
 			if (touch) onMove(touch.clientX);
 		}, { passive: false });
-		this.addDocListener("touchend", () => { dragging = false; cachedRect = null; });
+		this.addDocListener("touchend", () => { dragging = false; });
 	}
 
 	private renderTransport(parent: HTMLElement) {
