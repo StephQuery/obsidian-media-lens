@@ -651,6 +651,9 @@ export class MediaLensView extends ItemView {
 
 		btn.addEventListener("click", () => {
 			this.log(`wipeButton: clicked, A="${fileA.name}" B="${fileB.name}"`);
+			// Pause sidebar playback before opening wipe modal
+			if (this.primaryVideo && !this.primaryVideo.paused) this.primaryVideo.pause();
+			if (this.compareVideo && !this.compareVideo.paused) this.compareVideo.pause();
 			btn.disabled = true;
 			label.textContent = "Opening...";
 			requestAnimationFrame(() => {
