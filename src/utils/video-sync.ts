@@ -1,4 +1,5 @@
 export function formatTimestamp(seconds: number): string {
+	if (!isFinite(seconds) || seconds < 0) return "0:00.000";
 	const m = Math.floor(seconds / 60);
 	const s = Math.floor(seconds % 60);
 	const ms = Math.floor((seconds % 1) * 1000);

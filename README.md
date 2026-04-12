@@ -4,8 +4,6 @@ View detailed metadata for your media files without leaving Obsidian. Drop an im
 
 Compare two files side by side to spot differences — perfect for reviewing exports, checking transcodes, or auditing deliverables.
 
-> Screenshots coming soon.
-
 ## Features
 
 ### Inspect any media file

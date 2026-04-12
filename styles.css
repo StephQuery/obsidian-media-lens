@@ -56,16 +56,6 @@
 	flex-shrink: 0;
 }
 
-.media-lens-synced-stack {
-	display: flex;
-	flex-direction: column;
-	gap: var(--size-2-1);
-}
-
-.media-lens-synced-stack .media-lens-preview {
-	border-radius: var(--radius-s);
-}
-
 /* When synced, both video zones stack tightly */
 .media-lens--synced .media-lens-zone .media-lens-preview {
 	border-radius: var(--radius-s);
@@ -225,8 +215,7 @@
 	border-color: var(--text-muted);
 }
 
-.media-lens-btn-save:disabled,
-.media-lens-wipe-btn:disabled {
+.media-lens-btn-save:disabled {
 	opacity: 0.5;
 	pointer-events: none;
 }
@@ -357,11 +346,6 @@
 	font-size: var(--font-ui-smaller);
 }
 
-.media-lens-frame-fps {
-	font-size: var(--font-ui-smaller);
-	color: var(--text-faint);
-}
-
 .media-lens-transport-mute-group {
 	display: flex;
 	gap: var(--size-4-1);
@@ -372,10 +356,6 @@
 	height: 16px;
 	background: var(--background-modifier-border);
 	margin: 0 var(--size-2-1);
-}
-
-.media-lens-transport-play {
-	padding: var(--size-2-2) var(--size-4-2);
 }
 
 .media-lens-mute-label {
@@ -554,67 +534,6 @@
 	background: var(--background-secondary);
 	border-top: 1px solid var(--background-modifier-border);
 }
-
-.media-lens-wipe-seek {
-	display: flex;
-	align-items: center;
-	gap: var(--size-4-2);
-}
-
-.media-lens-wipe-range {
-	flex: 1;
-	height: 4px;
-	cursor: pointer;
-	accent-color: var(--interactive-accent);
-}
-
-.media-lens-wipe-time {
-	font-size: var(--font-ui-smaller);
-	color: var(--text-muted);
-	min-width: 55px;
-	text-align: center;
-	font-variant-numeric: tabular-nums;
-}
-
-.media-lens-wipe-mute-row {
-	display: flex;
-	gap: var(--size-4-2);
-	justify-content: center;
-}
-
-.media-lens-wipe-controls {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: var(--size-4-1);
-	flex-wrap: wrap;
-}
-
-.media-lens-wipe-btn {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: var(--size-2-1);
-	padding: var(--size-2-2) var(--size-4-1);
-	border: none;
-	border-radius: var(--radius-s);
-	background: transparent;
-	color: var(--text-muted);
-	cursor: pointer;
-	font-size: var(--font-ui-smaller);
-	transition: color 100ms ease, background-color 100ms ease;
-}
-
-.media-lens-wipe-btn:hover {
-	color: var(--text-normal);
-	background: var(--background-modifier-hover);
-}
-
-.media-lens-wipe-mute-btn {
-	padding: var(--size-2-2) var(--size-4-2);
-	border: 1px solid var(--background-modifier-border);
-}
-
 
 /* ── Muted Text ── */
 

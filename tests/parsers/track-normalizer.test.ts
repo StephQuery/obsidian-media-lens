@@ -152,4 +152,34 @@ describe("normalizeTracks", () => {
 		]);
 		expect(normalizeTracks(result)).toEqual([]);
 	});
+
+	it("handles string-typed numeric fields from mediainfo", () => {
+		const result = makeResult([{
+			"@type": "General",
+			Format: "MPEG-4",
+			Duration: "154.5",
+			OverallBitRate: "12000000",
+			FileSize: "52428800",
+		}]);
+		const sections = normalizeTracks(result);
+		const fields = new Map(sections[0].fields.map(f => [f.key, f.value]));
+		expect(fields.get("File size")).toBe("50.0 MB");
+		expect(fields.get("Duration")).toBe("2:34");
+		expect(fields.get("Overall bitrate")).toBe("12.0 Mbps");
+	});
+
+	it("handles non-numeric values gracefully", () => {
+		const result = makeResult([{
+			"@type": "General",
+			Format: "MPEG-4",
+			Duration: "not-a-number",
+			OverallBitRate: "garbage",
+			FileSize: "nope",
+		}]);
+		const sections = normalizeTracks(result);
+		const fields = new Map(sections[0].fields.map(f => [f.key, f.value]));
+		expect(fields.get("File size")).toBe("0 B");
+		expect(fields.get("Duration")).toBe("0:00");
+		expect(fields.get("Overall bitrate")).toBe("0 bps");
+	});
 });

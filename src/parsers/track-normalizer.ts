@@ -12,6 +12,7 @@ function field(key: string, value: unknown): MetadataField | null {
 }
 
 function formatDuration(seconds: number): string {
+	if (!isFinite(seconds) || seconds < 0) return "0:00";
 	const h = Math.floor(seconds / 3600);
 	const m = Math.floor((seconds % 3600) / 60);
 	const s = Math.floor(seconds % 60);
@@ -20,6 +21,7 @@ function formatDuration(seconds: number): string {
 }
 
 function formatBitrate(bps: number): string {
+	if (!isFinite(bps) || bps <= 0) return "0 bps";
 	if (bps >= 1_000_000) return `${(bps / 1_000_000).toFixed(1)} Mbps`;
 	if (bps >= 1_000) return `${(bps / 1_000).toFixed(0)} kbps`;
 	return `${bps} bps`;

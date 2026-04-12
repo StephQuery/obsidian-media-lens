@@ -429,14 +429,14 @@ export class MediaLensView extends ItemView {
 		});
 
 		const iconEl = zone.createDiv({ cls: "media-lens-drop-icon" });
-		setIcon(iconEl, isPrimary ? "upload" : "columns-2");
+		setIcon(iconEl, isPrimary ? "upload" : "plus");
 
 		let label: string;
 		if (isPrimary) {
-			label = "Drop a file to inspect";
+			label = "Add a file to inspect";
 		} else if (this.primaryFile) {
 			const typeLabel = getCategoryLabel(this.primaryFile.category);
-			label = `Drop another ${typeLabel} to compare`;
+			label = `Add another ${typeLabel} to compare`;
 		} else {
 			label = "Add a file above to compare";
 		}
@@ -610,7 +610,7 @@ export class MediaLensView extends ItemView {
 				btn.disabled = false;
 				label.textContent = "Capture";
 			};
-			if (this.syncEnabled && this.primaryVideo && this.compareVideo) {
+			if (this.primaryVideo && this.compareVideo) {
 				void this.captureSyncedFrames(this.primaryVideo, this.compareVideo).finally(done);
 			} else if (this.primaryVideo) {
 				void this.captureFrame(this.primaryVideo, "primary").finally(done);
@@ -629,7 +629,7 @@ export class MediaLensView extends ItemView {
 			cls: "media-lens-btn media-lens-btn-save",
 		});
 		const iconEl = btn.createSpan();
-		setIcon(iconEl, "split");
+		setIcon(iconEl, "columns-2");
 		const label = btn.createSpan({ text: "Wipe" });
 
 		btn.addEventListener("click", () => {

@@ -15,6 +15,7 @@ export default class MediaLensPlugin extends Plugin {
 
 	async onload() {
 		await this.loadSettings();
+		void this.cleanupTempDir();
 
 		this.registerView(
 			VIEW_TYPE_MEDIA_LENS,

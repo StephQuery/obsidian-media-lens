@@ -31,7 +31,7 @@ export function getCategoryLabel(category: MediaCategory): string {
 export const MAX_FILE_SIZE = 100 * 1024 * 1024 * 1024; // 100 GB
 
 export function formatSize(bytes: number): string {
-	if (bytes === 0) return "0 B";
+	if (!isFinite(bytes) || bytes <= 0) return "0 B";
 	const units = ["B", "KB", "MB", "GB"];
 	const rawIndex = Math.floor(Math.log(bytes) / Math.log(1024));
 	const i = Math.min(rawIndex, units.length - 1);

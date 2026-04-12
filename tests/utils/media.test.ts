@@ -115,6 +115,22 @@ describe("formatSize", () => {
 	it("formats gigabytes", () => {
 		expect(formatSize(1073741824)).toBe("1.0 GB");
 	});
+
+	it("handles NaN", () => {
+		expect(formatSize(NaN)).toBe("0 B");
+	});
+
+	it("handles Infinity", () => {
+		expect(formatSize(Infinity)).toBe("0 B");
+	});
+
+	it("handles negative numbers", () => {
+		expect(formatSize(-1024)).toBe("0 B");
+	});
+
+	it("clamps to GB for very large values", () => {
+		expect(formatSize(1099511627776)).toBe("1024.0 GB");
+	});
 });
 
 describe("getAcceptString", () => {
