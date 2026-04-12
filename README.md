@@ -17,11 +17,11 @@ Load a second file of the same type to see a side-by-side metadata comparison wi
 ### Synced video playback
 Compare two video encodes with synchronized playback. A unified transport bar controls both videos — scrub, play/pause, step frame-by-frame, skip forward/back, and mute each player independently.
 
-### Wipe comparison
+### Split view
 Open a full-screen modal that overlays both videos with a draggable vertical divider. Drag the divider to reveal more of either source — the standard technique for visual quality comparison.
 
 ### Frame capture
-Grab screenshots from video players at any point. In synced mode, both players are aligned to the exact same frame before capturing. Wipe mode captures a composite showing both sources split at the divider (labeled A|B).
+Grab screenshots from video players at any point. In synced mode, both players are aligned to the exact same frame before capturing. Split view captures a composite showing both sources split at the divider (labeled A|B).
 
 ### Save as note
 Persist any inspection or comparison as a markdown note in your vault. Notes include embedded media, captured frame screenshots, and metadata tables organized by section. Auto-named with timestamps and auto-incremented to avoid overwrites.
@@ -62,7 +62,7 @@ All processing happens locally. No data is sent to any server.
 3. Metadata appears in collapsible sections below the preview
 4. Load a second file of the same type to compare
 5. Click **Sync playback** to link both video players
-6. Click **Wipe** to open the full-screen visual comparison
+6. Click **Split view** to open the full-screen visual comparison
 7. Click the camera icon to capture frames
 8. Click **Save as note** to persist everything as a markdown note
 

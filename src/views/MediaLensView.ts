@@ -15,7 +15,7 @@ import type { MetadataSection } from "../parsers/types";
 import { generateSingleNote, generateComparisonNote, generateNoteName } from "../notes/note-generator";
 import type { NoteCapture } from "../notes/note-generator";
 import { saveNote, copyExternalFileToVault, saveCaptureToVault } from "../notes/note-writer";
-import { openWipeModal } from "./WipeModal";
+import { openSplitViewModal } from "./SplitViewModal";
 import { formatTimestamp, isVideoReady } from "../utils/video-sync";
 import { renderSyncTransport } from "./sync-transport";
 
@@ -49,7 +49,7 @@ export class MediaLensView extends ItemView {
 	private driftCleanup: (() => void) | null = null;
 	private primaryAbort: AbortController | null = null;
 	private compareAbort: AbortController | null = null;
-	private captures: Array<{ slot: "primary" | "compare" | "wipe"; timestamp: number; blob: Blob; label: string }> = [];
+	private captures: Array<{ slot: "primary" | "compare" | "split-view"; timestamp: number; blob: Blob; label: string }> = [];
 	private captureStripEl: HTMLElement | null = null;
 
 	// Persistent zone containers — created once in onOpen, selectively rebuilt
@@ -355,7 +355,7 @@ export class MediaLensView extends ItemView {
 			this.renderCaptureButton(actionRow);
 		}
 		if (this.primaryFile && this.compareFile && this.primaryFile.category === "video") {
-			this.renderWipeButton(actionRow);
+			this.renderSplitViewButton(actionRow);
 		}
 		this.renderSaveButton(actionRow);
 	}
@@ -620,7 +620,7 @@ export class MediaLensView extends ItemView {
 		});
 	}
 
-	private renderWipeButton(parent: HTMLElement) {
+	private renderSplitViewButton(parent: HTMLElement) {
 		if (!this.primaryFile || !this.compareFile) return;
 		const fileA = this.primaryFile;
 		const fileB = this.compareFile;
@@ -630,25 +630,25 @@ export class MediaLensView extends ItemView {
 		});
 		const iconEl = btn.createSpan();
 		setIcon(iconEl, "columns-2");
-		const label = btn.createSpan({ text: "Wipe" });
+		const label = btn.createSpan({ text: "Split view" });
 
 		btn.addEventListener("click", () => {
-			this.log(`wipeButton: clicked, A="${fileA.name}" B="${fileB.name}"`);
-			// Pause sidebar playback before opening wipe modal
+			this.log(`splitViewButton: clicked, A="${fileA.name}" B="${fileB.name}"`);
+			// Pause sidebar playback before opening split view modal
 			if (this.primaryVideo && !this.primaryVideo.paused) this.primaryVideo.pause();
 			if (this.compareVideo && !this.compareVideo.paused) this.compareVideo.pause();
 			btn.disabled = true;
 			label.textContent = "Opening...";
 			requestAnimationFrame(() => {
-				openWipeModal(
+				openSplitViewModal(
 				this.plugin,
 				{ name: fileA.name, buffer: fileA.buffer, category: fileA.category, frameRate: this.getFrameRate(fileA), fileRef: fileA.fileRef, mediaUrl: fileA.mediaUrl },
 				{ name: fileB.name, buffer: fileB.buffer, category: fileB.category, frameRate: this.getFrameRate(fileB), fileRef: fileB.fileRef, mediaUrl: fileB.mediaUrl },
-				(vidA, vidB, wipeBlob) => {
-					if (wipeBlob) {
+				(vidA, vidB, splitBlob) => {
+					if (splitBlob) {
 						const time = vidA.currentTime;
 						const label = formatTimestamp(time);
-						this.captures.push({ slot: "wipe", timestamp: time, blob: wipeBlob, label });
+						this.captures.push({ slot: "split-view", timestamp: time, blob: splitBlob, label });
 						this.updateCaptureStrip();
 					}
 					void this.captureFrame(vidA, "primary");
@@ -656,7 +656,7 @@ export class MediaLensView extends ItemView {
 				}
 			);
 			btn.disabled = false;
-			label.textContent = "Wipe";
+			label.textContent = "Split view";
 			});
 		});
 	}
@@ -842,8 +842,8 @@ export class MediaLensView extends ItemView {
 
 			const info = item.createDiv({ cls: "media-lens-capture-info" });
 			let nameText: string;
-			if (cap.slot === "wipe") {
-				nameText = "A|B: Wipe comparison";
+			if (cap.slot === "split-view") {
+				nameText = "A|B: Split view comparison";
 			} else {
 				const file = cap.slot === "primary" ? this.primaryFile : this.compareFile;
 				const playerLabel = this.compareFile ? (cap.slot === "primary" ? "A" : "B") : "";
@@ -888,9 +888,9 @@ export class MediaLensView extends ItemView {
 				let fileName: string;
 				let player: "A" | "B" | "A|B" | undefined;
 
-				if (cap.slot === "wipe") {
-					baseName = "wipe";
-					fileName = "Wipe comparison";
+				if (cap.slot === "split-view") {
+					baseName = "split-view";
+					fileName = "Split view comparison";
 					player = "A|B";
 				} else {
 					const file = cap.slot === "primary" ? this.primaryFile : this.compareFile;

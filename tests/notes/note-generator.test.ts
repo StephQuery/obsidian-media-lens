@@ -213,18 +213,18 @@ describe("generateComparisonNote with captures", () => {
 		expect(note).toContain("**B: compressed.mp4** @ 1:23.456");
 	});
 
-	it("labels wipe captures as A|B", () => {
-		const wipeCaptures = [
-			{ vaultPath: "media-lens/assets/wipe_1-23-456.png", label: "1:23.456", fileName: "Wipe comparison", player: "A|B" as const },
+	it("labels split view captures as A|B", () => {
+		const splitCaptures = [
+			{ vaultPath: "media-lens/assets/split-view_1-23-456.png", label: "1:23.456", fileName: "Split view comparison", player: "A|B" as const },
 			{ vaultPath: "media-lens/assets/orig_1-23-456.png", label: "1:23.456", fileName: "original.mp4", player: "A" as const },
 			{ vaultPath: "media-lens/assets/comp_1-23-456.png", label: "1:23.456", fileName: "compressed.mp4", player: "B" as const },
 		];
 		const note = generateComparisonNote(
 			{ name: "original.mp4", source: "vault", category: "video", vaultPath: "original.mp4" },
 			{ name: "compressed.mp4", source: "vault", category: "video", vaultPath: "compressed.mp4" },
-			testSections, sectionsB, "media-lens/assets", wipeCaptures
+			testSections, sectionsB, "media-lens/assets", splitCaptures
 		);
-		expect(note).toContain("**A|B: Wipe comparison** @ 1:23.456");
+		expect(note).toContain("**A|B: Split view comparison** @ 1:23.456");
 		expect(note).toContain("**A: original.mp4** @ 1:23.456");
 		expect(note).toContain("**B: compressed.mp4** @ 1:23.456");
 	});

@@ -476,19 +476,9 @@
 	background: var(--background-primary-alt);
 }
 
-.media-lens-wipe-spinner {
-	color: var(--text-muted);
-	animation: media-lens-spin 1s linear infinite;
-}
-
 .media-lens-wipe-loading-text {
 	font-size: var(--font-ui-small);
 	color: var(--text-muted);
-}
-
-@keyframes media-lens-spin {
-	from { transform: rotate(0deg); }
-	to { transform: rotate(360deg); }
 }
 
 .media-lens-wipe-divider {

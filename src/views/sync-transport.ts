@@ -24,7 +24,7 @@ export interface SyncTransportResult {
 
 /**
  * Renders a unified transport bar for synced dual-video playback.
- * Used by both the sidebar sync view and the wipe modal.
+ * Used by both the sidebar sync view and the split view modal.
  */
 export function renderSyncTransport(
 	parent: HTMLElement,

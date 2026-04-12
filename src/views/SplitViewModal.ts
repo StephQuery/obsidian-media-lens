@@ -1,4 +1,4 @@
-import { Modal, normalizePath, Notice, setIcon } from "obsidian";
+import { Modal, normalizePath, Notice } from "obsidian";
 import type MediaLensPlugin from "../main";
 import { formatTimestamp, isVideoReady } from "../utils/video-sync";
 import type { MediaCategory } from "../utils/media";
@@ -6,7 +6,7 @@ import { renderSyncTransport, type SyncTransportResult } from "./sync-transport"
 
 const TEMP_DIR = ".media-lens-temp";
 
-interface WipeFile {
+interface SplitViewFile {
 	name: string;
 	buffer: ArrayBuffer;
 	category: MediaCategory;
@@ -17,14 +17,14 @@ interface WipeFile {
 	tempVaultPath?: string;
 }
 
-type CaptureCallback = (vidA: HTMLVideoElement, vidB: HTMLVideoElement, wipeBlob?: Blob) => void;
+type CaptureCallback = (vidA: HTMLVideoElement, vidB: HTMLVideoElement, splitBlob?: Blob) => void;
 
 function log(msg: string, ...args: unknown[]) {
-	console.debug(`[Media Lens][Wipe] ${msg}`, ...args);
+	console.debug(`[Media Lens][SplitView] ${msg}`, ...args);
 }
 
 function logError(msg: string, ...args: unknown[]) {
-	console.error(`[Media Lens][Wipe] ${msg}`, ...args);
+	console.error(`[Media Lens][SplitView] ${msg}`, ...args);
 }
 
 function attachVideoLogging(video: HTMLVideoElement, label: string, signal: AbortSignal) {
@@ -43,19 +43,19 @@ function attachVideoLogging(video: HTMLVideoElement, label: string, signal: Abor
 		const err = video.error;
 		const msg = err ? `code=${err.code} "${err.message}"` : "unknown";
 		logError(`video[${label}]: error — ${msg}`);
-		new Notice(`Wipe video error (${label}): ${msg}`);
+		new Notice(`Split view video error (${label}): ${msg}`);
 	}, opts);
 }
 
-export class WipeModal extends Modal {
-	private fileA: WipeFile;
-	private fileB: WipeFile;
+export class SplitViewModal extends Modal {
+	private fileA: SplitViewFile;
+	private fileB: SplitViewFile;
 	private onCapture: CaptureCallback;
 	private vidA: HTMLVideoElement | null = null;
 	private vidB: HTMLVideoElement | null = null;
 	private objectUrls: string[] = [];
 	private transport: SyncTransportResult | null = null;
-	private wipePosition = 50;
+	private splitPosition = 50;
 	private documentListeners: Array<{ type: string; handler: EventListener }> = [];
 	private ownedTempPaths = new Set<string>();
 	private videoAbort = new AbortController();
@@ -63,8 +63,8 @@ export class WipeModal extends Modal {
 
 	constructor(
 		plugin: MediaLensPlugin,
-		fileA: WipeFile,
-		fileB: WipeFile,
+		fileA: SplitViewFile,
+		fileB: SplitViewFile,
 		onCapture: CaptureCallback
 	) {
 		super(plugin.app);
@@ -79,11 +79,12 @@ export class WipeModal extends Modal {
 		modalEl.addClass("media-lens-wipe-modal");
 		contentEl.empty();
 
-		await this.renderWipeView(contentEl);
+		await this.renderSplitView(contentEl);
 		this.renderTransport(contentEl);
-		log("onOpen: waiting for both videos to buffer");
-		await this.waitForBothReady();
-		log("onOpen: complete, videos ready");
+		log("onOpen: modal visible, buffering in background");
+		// Don't block — show modal immediately with loading overlay,
+		// controls enable once both videos are ready
+		void this.waitForBothReady();
 	}
 
 	onClose() {
@@ -110,7 +111,7 @@ export class WipeModal extends Modal {
 		this.documentListeners.push({ type, handler });
 	}
 
-	private async getMediaUrl(file: WipeFile): Promise<string> {
+	private async getMediaUrl(file: SplitViewFile): Promise<string> {
 		if (file.mediaUrl) {
 			log(`getMediaUrl: reusing pre-existing URL for "${file.name}" → ${file.mediaUrl.slice(0, 80)}…`);
 			return file.mediaUrl;
@@ -125,7 +126,7 @@ export class WipeModal extends Modal {
 		return url;
 	}
 
-	private async writeTempFile(file: WipeFile): Promise<string> {
+	private async writeTempFile(file: SplitViewFile): Promise<string> {
 		const tempDir = normalizePath(TEMP_DIR);
 		if (!this.app.vault.getAbstractFileByPath(tempDir)) {
 			log(`writeTempFile: creating temp directory "${tempDir}"`);
@@ -145,7 +146,7 @@ export class WipeModal extends Modal {
 		return tempPath;
 	}
 
-	private async removeTempFile(file: WipeFile) {
+	private async removeTempFile(file: SplitViewFile) {
 		if (!file.tempVaultPath) return;
 		const path = file.tempVaultPath;
 		file.tempVaultPath = undefined;
@@ -164,16 +165,14 @@ export class WipeModal extends Modal {
 	private transportButtons: HTMLButtonElement[] = [];
 	private seekInput: HTMLInputElement | null = null;
 
-	private async renderWipeView(parent: HTMLElement) {
+	private async renderSplitView(parent: HTMLElement) {
 		const viewport = parent.createDiv({ cls: "media-lens-wipe-viewport" });
 
 		// Loading overlay — shown until both videos are ready
 		this.loadingOverlay = viewport.createDiv({ cls: "media-lens-wipe-loading" });
-		const spinner = this.loadingOverlay.createDiv({ cls: "media-lens-wipe-spinner" });
-		setIcon(spinner, "loader-2");
-		this.loadingOverlay.createEl("span", { text: "Loading videos…", cls: "media-lens-wipe-loading-text" });
+		this.loadingOverlay.createEl("span", { text: "Loading…", cls: "media-lens-wipe-loading-text" });
 
-		log(`renderWipeView: preparing URLs for A="${this.fileA.name}" B="${this.fileB.name}"`);
+		log(`renderSplitView: preparing URLs for A="${this.fileA.name}" B="${this.fileB.name}"`);
 		const [urlA, urlB] = await Promise.all([
 			this.getMediaUrl(this.fileA),
 			this.getMediaUrl(this.fileB),
@@ -181,7 +180,7 @@ export class WipeModal extends Modal {
 		if (this.closed) return;
 
 		// Video B (bottom layer)
-		log(`renderWipeView: creating video B, url=${urlB.slice(0, 80)}…`);
+		log(`renderSplitView: creating video B, url=${urlB.slice(0, 80)}…`);
 		this.vidB = viewport.createEl("video", {
 			cls: "media-lens-wipe-video media-lens-wipe-video-b",
 		});
@@ -191,7 +190,7 @@ export class WipeModal extends Modal {
 		this.vidB.src = urlB;
 
 		// Video A (top layer, clipped)
-		log(`renderWipeView: creating video A, url=${urlA.slice(0, 80)}…`);
+		log(`renderSplitView: creating video A, url=${urlA.slice(0, 80)}…`);
 		this.vidA = viewport.createEl("video", {
 			cls: "media-lens-wipe-video media-lens-wipe-video-a",
 		});
@@ -209,12 +208,12 @@ export class WipeModal extends Modal {
 		const labelB = viewport.createDiv({ cls: "media-lens-wipe-label media-lens-wipe-label-b" });
 		labelB.createSpan({ text: "B" });
 
-		// Wipe drag — update CSS variables that drive clip-path and divider position
+		// Split drag — update CSS variables that drive clip-path and divider position
 		let dragging = false;
 
-		const updateWipe = (pct: number) => {
+		const updateSplit = (pct: number) => {
 			const clamped = Math.max(0, Math.min(100, pct));
-			this.wipePosition = clamped;
+			this.splitPosition = clamped;
 			if (this.vidA) {
 				this.vidA.setCssProps({ "--wipe-clip": `inset(0 ${100 - clamped}% 0 0)` });
 			}
@@ -223,19 +222,19 @@ export class WipeModal extends Modal {
 			labelB.setCssProps({ "--wipe-label-b": `${clamped + 2}%` });
 		};
 
-		updateWipe(50);
+		updateSplit(50);
 
-		let wipePending = false;
-		let wipeLatest = 50;
+		let splitPending = false;
+		let splitLatest = 50;
 		const onMove = (clientX: number) => {
 			if (!dragging) return;
 			const rect = viewport.getBoundingClientRect();
-			wipeLatest = ((clientX - rect.left) / rect.width) * 100;
-			if (!wipePending) {
-				wipePending = true;
+			splitLatest = ((clientX - rect.left) / rect.width) * 100;
+			if (!splitPending) {
+				splitPending = true;
 				requestAnimationFrame(() => {
-					wipePending = false;
-					updateWipe(wipeLatest);
+					splitPending = false;
+					updateSplit(splitLatest);
 				});
 			}
 		};
@@ -260,7 +259,7 @@ export class WipeModal extends Modal {
 		}, { passive: false });
 		this.addDocListener("touchend", () => { dragging = false; });
 
-		log("renderWipeView: complete");
+		log("renderSplitView: complete");
 	}
 
 	private renderTransport(parent: HTMLElement) {
@@ -289,7 +288,7 @@ export class WipeModal extends Modal {
 						new Promise<void>(r => { if (!vidA.seeking) r(); else vidA.addEventListener("seeked", () => r(), { once: true }); }),
 						new Promise<void>(r => { if (!vidB.seeking) r(); else vidB.addEventListener("seeked", () => r(), { once: true }); }),
 					]);
-					await this.captureWipeComposite(vidA, vidB);
+					await this.captureSplitComposite(vidA, vidB);
 				})();
 			},
 		});
@@ -339,24 +338,24 @@ export class WipeModal extends Modal {
 		});
 	}
 
-	private async captureWipeComposite(vidA: HTMLVideoElement, vidB: HTMLVideoElement) {
-		log(`captureWipeComposite: vidA ready=${isVideoReady(vidA)} vidB ready=${isVideoReady(vidB)} wipePos=${this.wipePosition.toFixed(1)}`);
+	private async captureSplitComposite(vidA: HTMLVideoElement, vidB: HTMLVideoElement) {
+		log(`captureSplitComposite: vidA ready=${isVideoReady(vidA)} vidB ready=${isVideoReady(vidB)} wipePos=${this.splitPosition.toFixed(1)}`);
 		if (!isVideoReady(vidA) || !isVideoReady(vidB)) {
 			new Notice("Video not ready for capture");
-			logError("captureWipeComposite: video not ready");
+			logError("captureSplitComposite: video not ready");
 			return;
 		}
 		const w = vidA.videoWidth;
 		const h = vidA.videoHeight;
-		const splitX = Math.round(w * (this.wipePosition / 100));
-		log(`captureWipeComposite: canvas ${w}x${h}, splitX=${splitX}`);
+		const splitX = Math.round(w * (this.splitPosition / 100));
+		log(`captureSplitComposite: canvas ${w}x${h}, splitX=${splitX}`);
 
 		const canvas = document.createElement("canvas");
 		canvas.width = w;
 		canvas.height = h;
 		const ctx = canvas.getContext("2d");
 		if (!ctx) {
-			logError("captureWipeComposite: failed to get 2d context");
+			logError("captureSplitComposite: failed to get 2d context");
 			return;
 		}
 
@@ -395,25 +394,25 @@ export class WipeModal extends Modal {
 			canvas.toBlob(resolve, "image/png");
 		});
 		if (!blob) {
-			logError("captureWipeComposite: toBlob returned null");
-			new Notice("Failed to capture wipe frame");
+			logError("captureSplitComposite: toBlob returned null");
+			new Notice("Failed to capture split view frame");
 			return;
 		}
 
-		log(`captureWipeComposite: captured ${blob.size} bytes`);
+		log(`captureSplitComposite: captured ${blob.size} bytes`);
 		this.onCapture(vidA, vidB, blob);
-		new Notice(`Wipe frame captured at ${formatTimestamp(vidA.currentTime)}`);
+		new Notice(`Split view frame captured at ${formatTimestamp(vidA.currentTime)}`);
 	}
 
 
 }
 
-export function openWipeModal(
+export function openSplitViewModal(
 	plugin: MediaLensPlugin,
 	fileA: { name: string; buffer: ArrayBuffer; category: MediaCategory; frameRate: number; fileRef?: File; mediaUrl?: string },
 	fileB: { name: string; buffer: ArrayBuffer; category: MediaCategory; frameRate: number; fileRef?: File; mediaUrl?: string },
 	onCapture: CaptureCallback
 ) {
-	log(`openWipeModal: A="${fileA.name}" (${fileA.buffer.byteLength} bytes) B="${fileB.name}" (${fileB.buffer.byteLength} bytes)`);
-	new WipeModal(plugin, fileA, fileB, onCapture).open();
+	log(`openSplitViewModal: A="${fileA.name}" (${fileA.buffer.byteLength} bytes) B="${fileB.name}" (${fileB.buffer.byteLength} bytes)`);
+	new SplitViewModal(plugin, fileA, fileB, onCapture).open();
 }
