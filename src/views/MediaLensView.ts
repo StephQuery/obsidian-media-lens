@@ -1154,7 +1154,7 @@ export class MediaLensView extends ItemView {
 		const droppedFile = e.dataTransfer?.files?.[0];
 		if (droppedFile) {
 			if (droppedFile.size > MAX_FILE_SIZE) {
-				new Notice(`File too large (${formatSize(droppedFile.size)}). Maximum is 100 GB.`);
+				new Notice(`File too large (${formatSize(droppedFile.size)}). Maximum is ${formatSize(MAX_FILE_SIZE)}.`);
 				return;
 			}
 			await this.loadFile(droppedFile.name, droppedFile.name, await droppedFile.arrayBuffer(), "external", slot);
@@ -1166,7 +1166,7 @@ export class MediaLensView extends ItemView {
 			const abstractFile = this.app.vault.getAbstractFileByPath(path);
 			if (abstractFile instanceof TFile) {
 				if (abstractFile.stat.size > MAX_FILE_SIZE) {
-					new Notice(`File too large (${formatSize(abstractFile.stat.size)}). Maximum is 100 GB.`);
+					new Notice(`File too large (${formatSize(abstractFile.stat.size)}). Maximum is ${formatSize(MAX_FILE_SIZE)}.`);
 					return;
 				}
 				const buffer = await this.app.vault.readBinary(abstractFile);
@@ -1190,7 +1190,7 @@ export class MediaLensView extends ItemView {
 		input.addEventListener("change", () => {
 			const file = input.files?.[0];
 			if (file && file.size > MAX_FILE_SIZE) {
-				new Notice(`File too large (${formatSize(file.size)}). Maximum is 100 GB.`);
+				new Notice(`File too large (${formatSize(file.size)}). Maximum is ${formatSize(MAX_FILE_SIZE)}.`);
 			} else if (file) {
 				void this.loadFile(file.name, file.name, file.arrayBuffer(), "external", slot);
 			}
@@ -1215,6 +1215,12 @@ export class MediaLensView extends ItemView {
 			const dotIdx = name.lastIndexOf(".");
 			const ext = dotIdx > 0 ? name.slice(dotIdx + 1) : "(no extension)";
 			new Notice(`Unsupported file type: ${ext}`);
+			return;
+		}
+
+		if (slot === "compare" && this.primaryFile && category !== this.primaryFile.category) {
+			const expected = getCategoryLabel(this.primaryFile.category);
+			new Notice(`Cannot compare: expected ${expected}, got ${getCategoryLabel(category)}`);
 			return;
 		}
 
