@@ -21,6 +21,7 @@ export function createDriftController(
 ): DriftController {
 	let raf: number | null = null;
 	let active = false;
+	let frameCount = 0;
 
 	const loop = () => {
 		if (!active || vidA.paused || vidA.ended) {
@@ -30,15 +31,20 @@ export function createDriftController(
 			return;
 		}
 
-		if (!vidB.ended && !vidB.paused) {
-			const drift = vidB.currentTime - vidA.currentTime;
-			if (Math.abs(drift) > 1) {
-				vidB.currentTime = vidA.currentTime;
-				vidB.playbackRate = 1;
-			} else if (Math.abs(drift) > frameDuration) {
-				vidB.playbackRate = drift > 0 ? 0.95 : 1.05;
-			} else {
-				vidB.playbackRate = 1;
+		frameCount++;
+		// Only check drift every 5th frame when in sync to reduce CPU
+		const inSync = vidB.playbackRate === 1;
+		if (!inSync || frameCount % 5 === 0) {
+			if (!vidB.ended && !vidB.paused) {
+				const drift = vidB.currentTime - vidA.currentTime;
+				if (Math.abs(drift) > 1) {
+					vidB.currentTime = vidA.currentTime;
+					vidB.playbackRate = 1;
+				} else if (Math.abs(drift) > frameDuration) {
+					vidB.playbackRate = drift > 0 ? 0.95 : 1.05;
+				} else {
+					vidB.playbackRate = 1;
+				}
 			}
 		}
 

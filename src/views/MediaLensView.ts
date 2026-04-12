@@ -445,25 +445,25 @@ export class MediaLensView extends ItemView {
 		btn.addEventListener("click", () => {
 			btn.disabled = true;
 			label.textContent = "Opening...";
-			requestAnimationFrame(() => {
+			setTimeout(() => {
 				openWipeModal(
-				this.plugin,
-				{ name: fileA.name, buffer: fileA.buffer, category: fileA.category, frameRate: this.getFrameRate(fileA) },
-				{ name: fileB.name, buffer: fileB.buffer, category: fileB.category, frameRate: this.getFrameRate(fileB) },
-				(vidA, vidB, wipeBlob) => {
-					if (wipeBlob) {
-						const time = vidA.currentTime;
-						const label = formatTimestamp(time);
-						this.captures.push({ slot: "wipe", timestamp: time, blob: wipeBlob, label });
-						this.updateCaptureStrip();
+					this.plugin,
+					{ name: fileA.name, buffer: fileA.buffer, category: fileA.category, frameRate: this.getFrameRate(fileA) },
+					{ name: fileB.name, buffer: fileB.buffer, category: fileB.category, frameRate: this.getFrameRate(fileB) },
+					(vidA, vidB, wipeBlob) => {
+						if (wipeBlob) {
+							const time = vidA.currentTime;
+							const ts = formatTimestamp(time);
+							this.captures.push({ slot: "wipe", timestamp: time, blob: wipeBlob, label: ts });
+							this.updateCaptureStrip();
+						}
+						void this.captureFrame(vidA, "primary");
+						void this.captureFrame(vidB, "compare");
 					}
-					void this.captureFrame(vidA, "primary");
-					void this.captureFrame(vidB, "compare");
-				}
-			);
-			btn.disabled = false;
-			label.textContent = "Wipe";
-			});
+				);
+				btn.disabled = false;
+				label.textContent = "Wipe";
+			}, 50);
 		});
 	}
 

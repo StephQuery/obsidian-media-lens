@@ -466,6 +466,7 @@
 .media-lens-wipe-video-a {
 	z-index: 2;
 	clip-path: var(--wipe-clip, inset(0 50% 0 0));
+	will-change: clip-path;
 }
 
 .media-lens-wipe-video-b {

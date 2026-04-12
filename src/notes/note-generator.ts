@@ -74,7 +74,7 @@ function buildComparisonSections(
 
 		parts.push(`### ${sectionName}`);
 		parts.push("");
-		parts.push(`| Field | ${nameA} | ${nameB} |`);
+		parts.push(`| Field | ${escapeCell(nameA)} | ${escapeCell(nameB)} |`);
 		parts.push("|-------|-------|-------|");
 
 		for (const key of allKeys) {
