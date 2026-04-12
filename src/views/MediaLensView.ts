@@ -45,7 +45,8 @@ export class MediaLensView extends ItemView {
 	private syncEnabled = false;
 	private primaryVideo: HTMLVideoElement | null = null;
 	private compareVideo: HTMLVideoElement | null = null;
-	private driftRafCleanup: (() => void) | null = null;
+	private driftCleanup: (() => void) | null = null;
+	private videoAbort: AbortController | null = null;
 	private captures: Array<{ slot: "primary" | "compare" | "wipe"; timestamp: number; blob: Blob; label: string }> = [];
 	private captureStripEl: HTMLElement | null = null;
 
@@ -72,9 +73,13 @@ export class MediaLensView extends ItemView {
 	}
 
 	async onClose() {
-		if (this.driftRafCleanup) {
-			this.driftRafCleanup();
-			this.driftRafCleanup = null;
+		if (this.driftCleanup) {
+			this.driftCleanup();
+			this.driftCleanup = null;
+		}
+		if (this.videoAbort) {
+			this.videoAbort.abort();
+			this.videoAbort = null;
 		}
 		this.removeDocListeners();
 		this.revokeFileMediaUrl(this.primaryFile);
@@ -222,10 +227,14 @@ export class MediaLensView extends ItemView {
 		this.log(`render: primary="${this.primaryFile?.name ?? "none"}" compare="${this.compareFile?.name ?? "none"}" sync=${this.syncEnabled}`);
 		this.revokeObjectUrls();
 		this.removeDocListeners();
-		if (this.driftRafCleanup) {
-			this.driftRafCleanup();
-			this.driftRafCleanup = null;
+		if (this.driftCleanup) {
+			this.driftCleanup();
+			this.driftCleanup = null;
 		}
+		if (this.videoAbort) {
+			this.videoAbort.abort();
+		}
+		this.videoAbort = new AbortController();
 		this.primaryVideo = null;
 		this.compareVideo = null;
 		const container = this.contentEl;
@@ -437,7 +446,7 @@ export class MediaLensView extends ItemView {
 					img.addEventListener("error", () => {
 						wrapper.empty();
 						wrapper.createEl("span", { text: "Preview unavailable", cls: "media-lens-muted" });
-					});
+					}, { once: true });
 				} else {
 					const url = this.createObjectUrl(file.buffer, mime);
 					const img = wrapper.createEl("img", {
@@ -447,7 +456,7 @@ export class MediaLensView extends ItemView {
 					img.addEventListener("error", () => {
 						wrapper.empty();
 						wrapper.createEl("span", { text: "Preview unavailable", cls: "media-lens-muted" });
-					});
+					}, { once: true });
 				}
 				break;
 			}
@@ -461,21 +470,22 @@ export class MediaLensView extends ItemView {
 				});
 				video.controls = !synced;
 				video.muted = true;
-				video.addEventListener("loadstart", () => this.log(`video[${slot}]: loadstart`));
-				video.addEventListener("loadedmetadata", () => this.log(`video[${slot}]: loadedmetadata (${video.videoWidth}x${video.videoHeight}, ${video.duration.toFixed(1)}s)`));
-				video.addEventListener("loadeddata", () => this.log(`video[${slot}]: loadeddata (readyState=${video.readyState})`));
-				video.addEventListener("canplay", () => this.log(`video[${slot}]: canplay`));
-				video.addEventListener("canplaythrough", () => this.log(`video[${slot}]: canplaythrough`));
-				video.addEventListener("playing", () => this.log(`video[${slot}]: playing`));
-				video.addEventListener("stalled", () => this.log(`video[${slot}]: stalled (readyState=${video.readyState})`));
-				video.addEventListener("waiting", () => this.log(`video[${slot}]: waiting (readyState=${video.readyState})`));
-				video.addEventListener("suspend", () => this.log(`video[${slot}]: suspend`));
+				const signal = this.videoAbort?.signal;
+				video.addEventListener("loadstart", () => this.log(`video[${slot}]: loadstart`), { signal });
+				video.addEventListener("loadedmetadata", () => this.log(`video[${slot}]: loadedmetadata (${video.videoWidth}x${video.videoHeight}, ${video.duration.toFixed(1)}s)`), { signal });
+				video.addEventListener("loadeddata", () => this.log(`video[${slot}]: loadeddata (readyState=${video.readyState})`), { signal });
+				video.addEventListener("canplay", () => this.log(`video[${slot}]: canplay`), { signal });
+				video.addEventListener("canplaythrough", () => this.log(`video[${slot}]: canplaythrough`), { signal });
+				video.addEventListener("playing", () => this.log(`video[${slot}]: playing`), { signal });
+				video.addEventListener("stalled", () => this.log(`video[${slot}]: stalled (readyState=${video.readyState})`), { signal });
+				video.addEventListener("waiting", () => this.log(`video[${slot}]: waiting (readyState=${video.readyState})`), { signal });
+				video.addEventListener("suspend", () => this.log(`video[${slot}]: suspend`), { signal });
 				video.addEventListener("error", () => {
 					const err = video.error;
 					const msg = err ? `code=${err.code} "${err.message}"` : "unknown";
 					this.logError(`video[${slot}]: error — ${msg}`);
 					new Notice(`Video error: ${msg}`);
-				});
+				}, { signal });
 				if (slot === "primary") {
 					this.primaryVideo = video;
 				} else {
@@ -638,7 +648,7 @@ export class MediaLensView extends ItemView {
 		const fps = this.getFrameRate(this.primaryFile);
 		const frameDuration = 1 / fps;
 		const drift = createDriftController(vidA, vidB, frameDuration);
-		this.driftRafCleanup = () => drift.stop();
+		this.driftCleanup = () => drift.stop();
 
 		vidA.addEventListener("play", () => {
 			vidB.currentTime = vidA.currentTime;

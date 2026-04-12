@@ -26,23 +26,24 @@ function logError(msg: string, ...args: unknown[]) {
 	console.error(`[Media Lens][Wipe] ${msg}`, ...args);
 }
 
-function attachVideoLogging(video: HTMLVideoElement, label: string) {
-	video.addEventListener("loadstart", () => log(`video[${label}]: loadstart`));
-	video.addEventListener("loadedmetadata", () => log(`video[${label}]: loadedmetadata (${video.videoWidth}x${video.videoHeight}, ${video.duration.toFixed(1)}s)`));
-	video.addEventListener("loadeddata", () => log(`video[${label}]: loadeddata (readyState=${video.readyState})`));
-	video.addEventListener("canplay", () => log(`video[${label}]: canplay`));
-	video.addEventListener("canplaythrough", () => log(`video[${label}]: canplaythrough`));
-	video.addEventListener("playing", () => log(`video[${label}]: playing`));
-	video.addEventListener("pause", () => log(`video[${label}]: pause`));
-	video.addEventListener("stalled", () => log(`video[${label}]: stalled (readyState=${video.readyState})`));
-	video.addEventListener("waiting", () => log(`video[${label}]: waiting (readyState=${video.readyState}, currentTime=${video.currentTime.toFixed(1)})`));
-	video.addEventListener("seeked", () => log(`video[${label}]: seeked (currentTime=${video.currentTime.toFixed(3)})`));
+function attachVideoLogging(video: HTMLVideoElement, label: string, signal: AbortSignal) {
+	const opts = { signal };
+	video.addEventListener("loadstart", () => log(`video[${label}]: loadstart`), opts);
+	video.addEventListener("loadedmetadata", () => log(`video[${label}]: loadedmetadata (${video.videoWidth}x${video.videoHeight}, ${video.duration.toFixed(1)}s)`), opts);
+	video.addEventListener("loadeddata", () => log(`video[${label}]: loadeddata (readyState=${video.readyState})`), opts);
+	video.addEventListener("canplay", () => log(`video[${label}]: canplay`), opts);
+	video.addEventListener("canplaythrough", () => log(`video[${label}]: canplaythrough`), opts);
+	video.addEventListener("playing", () => log(`video[${label}]: playing`), opts);
+	video.addEventListener("pause", () => log(`video[${label}]: pause`), opts);
+	video.addEventListener("stalled", () => log(`video[${label}]: stalled (readyState=${video.readyState})`), opts);
+	video.addEventListener("waiting", () => log(`video[${label}]: waiting (readyState=${video.readyState}, currentTime=${video.currentTime.toFixed(1)})`), opts);
+	video.addEventListener("seeked", () => log(`video[${label}]: seeked (currentTime=${video.currentTime.toFixed(3)})`), opts);
 	video.addEventListener("error", () => {
 		const err = video.error;
 		const msg = err ? `code=${err.code} "${err.message}"` : "unknown";
 		logError(`video[${label}]: error — ${msg}`);
 		new Notice(`Wipe video error (${label}): ${msg}`);
-	});
+	}, opts);
 }
 
 export class WipeModal extends Modal {
@@ -56,6 +57,8 @@ export class WipeModal extends Modal {
 	private wipePosition = 50;
 	private documentListeners: Array<{ type: string; handler: EventListener }> = [];
 	private ownedTempPaths = new Set<string>();
+	private videoAbort = new AbortController();
+	private closed = false;
 
 	constructor(
 		plugin: MediaLensPlugin,
@@ -84,6 +87,8 @@ export class WipeModal extends Modal {
 
 	onClose() {
 		log("onClose: cleaning up");
+		this.closed = true;
+		this.videoAbort.abort();
 		if (this.driftController) this.driftController.stop();
 		for (const { type, handler } of this.documentListeners) {
 			document.removeEventListener(type, handler);
@@ -93,7 +98,6 @@ export class WipeModal extends Modal {
 			if (url.startsWith("blob:")) URL.revokeObjectURL(url);
 		}
 		this.objectUrls = [];
-		// Only remove temp files the modal created (not pre-existing sidebar ones)
 		if (this.ownedTempPaths.has(this.fileA.tempVaultPath ?? "")) void this.removeTempFile(this.fileA);
 		if (this.ownedTempPaths.has(this.fileB.tempVaultPath ?? "")) void this.removeTempFile(this.fileB);
 		this.contentEl.empty();
@@ -173,6 +177,7 @@ export class WipeModal extends Modal {
 			this.getMediaUrl(this.fileA),
 			this.getMediaUrl(this.fileB),
 		]);
+		if (this.closed) return;
 
 		// Video B (bottom layer)
 		log(`renderWipeView: creating video B, url=${urlB.slice(0, 80)}…`);
@@ -181,7 +186,7 @@ export class WipeModal extends Modal {
 		});
 		this.vidB.muted = true;
 		this.vidB.preload = "auto";
-		attachVideoLogging(this.vidB, "B");
+		attachVideoLogging(this.vidB, "B", this.videoAbort.signal);
 		this.vidB.src = urlB;
 
 		// Video A (top layer, clipped)
@@ -191,7 +196,7 @@ export class WipeModal extends Modal {
 		});
 		this.vidA.muted = true;
 		this.vidA.preload = "auto";
-		attachVideoLogging(this.vidA, "A");
+		attachVideoLogging(this.vidA, "A", this.videoAbort.signal);
 		this.vidA.src = urlA;
 
 		// Divider

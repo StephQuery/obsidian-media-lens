@@ -1,4 +1,4 @@
-import { normalizePath, Plugin, WorkspaceLeaf } from "obsidian";
+import { normalizePath, Plugin, TFolder, WorkspaceLeaf } from "obsidian";
 import { DEFAULT_SETTINGS, MediaLensSettingTab } from "./settings";
 import { MediaLensView, VIEW_TYPE_MEDIA_LENS } from "./views/MediaLensView";
 import { closeParser } from "./parsers/media-info-parser";
@@ -60,6 +60,17 @@ export default class MediaLensPlugin extends Plugin {
 
 	onunload() {
 		closeParser();
+		void this.cleanupTempDir();
+	}
+
+	private async cleanupTempDir() {
+		const tempDir = this.app.vault.getAbstractFileByPath(normalizePath(".media-lens-temp"));
+		if (tempDir instanceof TFolder) {
+			for (const child of [...tempDir.children]) {
+				try { await this.app.fileManager.trashFile(child); } catch { /* best effort */ }
+			}
+			try { await this.app.fileManager.trashFile(tempDir); } catch { /* best effort */ }
+		}
 	}
 
 	async activateView() {
