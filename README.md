@@ -89,7 +89,7 @@ npm run test:watch # vitest watch mode
 
 ## License
 
-[0-BSD](LICENSE)
+[MIT](LICENSE)
 
 ---
 
