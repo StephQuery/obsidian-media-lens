@@ -607,12 +607,6 @@ export class MediaLensView extends ItemView {
 		// Controls row: [Mute A] [Mute B] | [◀◀] [◀ Frame] [⏹] [▶⏸] [Frame ▶] [▶▶]
 		const controls = bar.createDiv({ cls: "media-lens-transport-controls" });
 
-		// Mute buttons
-		this.renderMuteButton(controls, vidA, "A");
-		this.renderMuteButton(controls, vidB, "B");
-
-		controls.createDiv({ cls: "media-lens-transport-sep" });
-
 		// Skip back 5s
 		const skipBack = controls.createEl("button", {
 			cls: "media-lens-btn media-lens-btn-secondary media-lens-frame-btn",
@@ -660,6 +654,12 @@ export class MediaLensView extends ItemView {
 		});
 		const sfIcon = skipFwd.createSpan();
 		setIcon(sfIcon, "fast-forward");
+
+		controls.createDiv({ cls: "media-lens-transport-sep" });
+
+		// Mute buttons
+		this.renderMuteButton(controls, vidA, "A");
+		this.renderMuteButton(controls, vidB, "B");
 
 		// Play/pause logic
 		const updatePlayIcon = () => {
@@ -792,9 +792,6 @@ export class MediaLensView extends ItemView {
 			return btn;
 		};
 
-		this.renderMuteButton(controls, video);
-		controls.createDiv({ cls: "media-lens-transport-sep" });
-
 		const skipBack = makeBtn("rewind", "Back 5 seconds");
 		const frameBack = makeBtn("chevron-left", "Previous frame");
 		const stopBtn = makeBtn("square", "Stop");
@@ -804,6 +801,7 @@ export class MediaLensView extends ItemView {
 		const skipFwd = makeBtn("fast-forward", "Forward 5 seconds");
 
 		controls.createDiv({ cls: "media-lens-transport-sep" });
+		this.renderMuteButton(controls, video);
 		controls.createSpan({ text: `${fps} fps`, cls: "media-lens-frame-fps" });
 
 		const updatePlayIcon = () => {
