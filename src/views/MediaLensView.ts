@@ -724,6 +724,15 @@ export class MediaLensView extends ItemView {
 
 
 
+	private getSubtitleText(file: LoadedFile): string | undefined {
+		if (file.category !== "subtitle") return undefined;
+		try {
+			return new TextDecoder().decode(file.buffer);
+		} catch {
+			return undefined;
+		}
+	}
+
 	private getFrameRate(file: LoadedFile): number {
 		for (const section of file.sections) {
 			for (const field of section.fields) {

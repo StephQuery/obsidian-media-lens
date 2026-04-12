@@ -5,6 +5,8 @@ interface NoteFile {
 	source: "vault" | "external";
 	category: string;
 	vaultPath?: string;
+	/** For subtitle files, the decoded text content to embed inline */
+	textContent?: string;
 }
 
 export interface NoteCapture {
@@ -114,6 +116,19 @@ function buildCaptures(captures: NoteCapture[]): string {
 	return lines.join("\n");
 }
 
+function buildSubtitleContent(file: NoteFile): string {
+	if (file.category !== "subtitle" || !file.textContent) return "";
+	const lines = [
+		"### Contents",
+		"",
+		"```",
+		file.textContent,
+		"```",
+		"",
+	];
+	return lines.join("\n");
+}
+
 export function generateSingleNote(
 	file: NoteFile,
 	sections: MetadataSection[],
@@ -127,6 +142,8 @@ export function generateSingleNote(
 		`![[${path}]]`,
 		"",
 	];
+	const subtitleContent = buildSubtitleContent(file);
+	if (subtitleContent) lines.push(subtitleContent);
 	if (captures.length > 0) {
 		lines.push(buildCaptures(captures), "");
 	}
@@ -147,10 +164,15 @@ export function generateComparisonNote(
 	const lines: string[] = [
 		`**${fileA.name}**`, "",
 		`![[${pathA}]]`, "",
-		"---", "",
+	];
+	const subA = buildSubtitleContent(fileA);
+	if (subA) lines.push(subA);
+	lines.push("---", "",
 		`**${fileB.name}**`, "",
 		`![[${pathB}]]`, "",
-	];
+	);
+	const subB = buildSubtitleContent(fileB);
+	if (subB) lines.push(subB);
 	if (captures.length > 0) {
 		lines.push("---", "", buildCaptures(captures), "");
 	}
