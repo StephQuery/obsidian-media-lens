@@ -40,7 +40,6 @@ export class MediaLensView extends ItemView {
 	plugin: MediaLensPlugin;
 	primaryFile: LoadedFile | null = null;
 	compareFile: LoadedFile | null = null;
-	private objectUrls: string[] = [];
 	private captureStripUrls: string[] = [];
 	private docListeners: Array<{ type: string; handler: EventListener }> = [];
 	private syncEnabled = false;
@@ -105,7 +104,7 @@ export class MediaLensView extends ItemView {
 		this.revokeFileMediaUrl(this.compareFile);
 		await this.removeTempFile(this.primaryFile);
 		await this.removeTempFile(this.compareFile);
-		this.revokeObjectUrls();
+		this.revokeCaptureUrls();
 		this.contentEl.empty();
 	}
 
@@ -117,10 +116,7 @@ export class MediaLensView extends ItemView {
 		console.error(`[Media Lens] ${msg}`, ...args);
 	}
 
-	private revokeObjectUrls() {
-		this.log(`revokeObjectUrls: revoking ${this.objectUrls.length} object URLs, ${this.captureStripUrls.length} capture URLs`);
-		for (const url of this.objectUrls) URL.revokeObjectURL(url);
-		this.objectUrls = [];
+	private revokeCaptureUrls() {
 		for (const url of this.captureStripUrls) URL.revokeObjectURL(url);
 		this.captureStripUrls = [];
 	}
@@ -146,12 +142,6 @@ export class MediaLensView extends ItemView {
 		this.docListeners = [];
 	}
 
-	private createObjectUrl(buffer: ArrayBuffer, mimeType: string): string {
-		const url = URL.createObjectURL(new Blob([buffer], { type: mimeType }));
-		this.objectUrls.push(url);
-		return url;
-	}
-
 	private async getMediaUrl(file: LoadedFile, mimeType: string): Promise<string> {
 		if (file.mediaUrl) {
 			this.log(`getMediaUrl: reusing cached URL for "${file.name}" → ${file.mediaUrl.slice(0, 60)}…`);
@@ -162,14 +152,17 @@ export class MediaLensView extends ItemView {
 		if (file.source === "vault") {
 			url = this.app.vault.adapter.getResourcePath(normalizePath(file.path));
 			method = "vault resourcePath";
-		} else {
-			// Blob URLs don't support range requests in Electron's app:// origin,
-			// so video decoders can't seek even with fully buffered data.
+		} else if (file.category === "video" || file.category === "audio") {
+			// Video/audio blob URLs don't support range requests in Electron's app:// origin.
 			// Write to a temp vault file and use Obsidian's native resource path.
 			const tempPath = await this.writeTempFile(file);
 			url = this.app.vault.adapter.getResourcePath(normalizePath(tempPath));
 			file.tempVaultPath = tempPath;
 			method = `temp vault file → resourcePath (${tempPath})`;
+		} else {
+			// Images and subtitles work fine with blob URLs
+			url = URL.createObjectURL(new Blob([file.buffer], { type: mimeType }));
+			method = "blob objectURL";
 		}
 		file.mediaUrl = url;
 		this.log(`getMediaUrl: created URL for "${file.name}" via ${method} → ${url.slice(0, 120)}…`);
@@ -370,7 +363,6 @@ export class MediaLensView extends ItemView {
 
 	private rebuildMetadataZone() {
 		if (!this.metadataZone) return;
-		this.revokeObjectUrls();
 		this.metadataZone.empty();
 
 		if (this.primaryFile && this.compareFile) {
@@ -513,27 +505,16 @@ export class MediaLensView extends ItemView {
 
 		switch (file.category) {
 			case "image": {
-				if (ext === "svg") {
-					const url = this.createObjectUrl(file.buffer, "image/svg+xml");
-					const img = wrapper.createEl("img", {
-						cls: "media-lens-preview-img",
-						attr: { src: url, alt: file.name },
-					});
-					img.addEventListener("error", () => {
-						wrapper.empty();
-						wrapper.createEl("span", { text: "Preview unavailable", cls: "media-lens-muted" });
-					}, { once: true });
-				} else {
-					const url = this.createObjectUrl(file.buffer, mime);
-					const img = wrapper.createEl("img", {
-						cls: "media-lens-preview-img",
-						attr: { src: url, alt: file.name },
-					});
-					img.addEventListener("error", () => {
-						wrapper.empty();
-						wrapper.createEl("span", { text: "Preview unavailable", cls: "media-lens-muted" });
-					}, { once: true });
-				}
+				const imgMime = ext === "svg" ? "image/svg+xml" : mime;
+				const url = await this.getMediaUrl(file, imgMime);
+				const img = wrapper.createEl("img", {
+					cls: "media-lens-preview-img",
+					attr: { src: url, alt: file.name },
+				});
+				img.addEventListener("error", () => {
+					wrapper.empty();
+					wrapper.createEl("span", { text: "Preview unavailable", cls: "media-lens-muted" });
+				}, { once: true });
 				break;
 			}
 			case "video": {
