@@ -9,7 +9,9 @@ Compare two files side by side to analyze differences, perfect for reviewing exp
 ### Inspect any media file
 Drop a file into the sidebar or browse from your file system. Media Lens parses the file locally and displays organized metadata in collapsible sections (General, Video, Audio, Text, Image).
 
-![](assets/inspect.png)
+![](assets/inspect-1.png)
+
+![](assets/inspect-2.png)
 
 **Supported formats:** MP4, MOV, MKV, AVI, WebM, JPEG, PNG, GIF, WebP, TIFF, BMP, SVG, MP3, FLAC, WAV, AAC, OGG, SRT, VTT, ASS, and many more.
 
