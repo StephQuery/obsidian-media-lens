@@ -5,6 +5,10 @@ on:
         branches:
             - master
 
+concurrency:
+    group: release
+    cancel-in-progress: false
+
 permissions:
     contents: write
     id-token: write
@@ -24,7 +28,7 @@ jobs:
             - name: Check if tag already exists
               id: tag_check
               run: |
-                  if git ls-remote --tags origin | grep -q "refs/tags/${{ steps.version.outputs.version }}$"; then
+                  if git ls-remote --exit-code --tags origin "refs/tags/${{ steps.version.outputs.version }}" > /dev/null 2>&1; then
                     echo "exists=true" >> $GITHUB_OUTPUT
                   else
                     echo "exists=false" >> $GITHUB_OUTPUT
