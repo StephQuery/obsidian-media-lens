@@ -1,7 +1,7 @@
 {
 	"id": "media-lens",
 	"name": "Media Lens",
-	"version": "1.0.0",
+	"version": "1.1.0",
 	"minAppVersion": "1.7.2",
 	"description": "Inspect and compare metadata for images, video, audio, and subtitle files.",
 	"author": "Glenn Gonda",
