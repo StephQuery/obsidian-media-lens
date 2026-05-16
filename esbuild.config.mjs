@@ -1,7 +1,6 @@
 import esbuild from "esbuild";
 import process from "process";
 import { builtinModules } from 'node:module';
-import { copyFileSync } from 'node:fs';
 
 const banner =
 `/*
@@ -33,6 +32,7 @@ const context = await esbuild.context({
 		"@lezer/highlight",
 		"@lezer/lr",
 		...builtinModules],
+	loader: { ".wasm": "dataurl" },
 	format: "cjs",
 	target: "es2020",
 	logLevel: "info",
@@ -45,16 +45,7 @@ const context = await esbuild.context({
 
 if (prod) {
 	await context.rebuild();
-	copyFileSync(
-		"node_modules/mediainfo.js/dist/MediaInfoModule.wasm",
-		"MediaInfoModule.wasm"
-	);
 	process.exit(0);
 } else {
-	// Copy WASM for dev mode too
-	copyFileSync(
-		"node_modules/mediainfo.js/dist/MediaInfoModule.wasm",
-		"MediaInfoModule.wasm"
-	);
 	await context.watch();
 }

@@ -80,7 +80,7 @@ Pending.
 
 ### Manual
 
-1. Download `main.js`, `styles.css`, `manifest.json`, and `MediaInfoModule.wasm` from the [latest release](https://github.com/StephQuery/obsidian-media-lens/releases)
+1. Download `main.js`, `styles.css`, and `manifest.json` from the [latest release](https://github.com/StephQuery/obsidian-media-lens/releases)
 2. Create a folder: `your-vault/.obsidian/plugins/media-lens/`
 3. Copy the downloaded files into that folder
 4. Enable the plugin in **Settings → Community Plugins**
@@ -100,7 +100,7 @@ Pending.
 
 - **Desktop:** Supported
 - **Mobile:** Not recommended — WASM loading and video playback may have limited support on mobile devices
-- **Minimum Obsidian version:** 0.15.0
+- **Minimum Obsidian version:** 1.7.2
 
 ## Support
 

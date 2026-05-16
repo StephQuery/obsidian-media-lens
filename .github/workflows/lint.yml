@@ -21,5 +21,3 @@ jobs:
             - run: npm run build
             - run: npm run lint
             - run: npm test
-            - name: Verify WASM file exists
-              run: test -f MediaInfoModule.wasm

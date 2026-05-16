@@ -1,4 +1,5 @@
 import type { MediaInfoResult, ReadChunkFunc } from "mediainfo.js";
+import wasmDataUrl from "mediainfo.js/MediaInfoModule.wasm";
 
 interface MediaInfoInstance {
 	analyzeData(size: number, readChunk: ReadChunkFunc): Promise<MediaInfoResult>;
@@ -9,7 +10,7 @@ let instance: MediaInfoInstance | null = null;
 let initPromise: Promise<MediaInfoInstance> | null = null;
 let initFailed = false;
 
-async function getInstance(wasmUrl: string): Promise<MediaInfoInstance> {
+async function getInstance(): Promise<MediaInfoInstance> {
 	if (instance) return instance;
 	if (initFailed) throw new Error("MediaInfo WASM failed to load previously. Reload the plugin to retry.");
 	if (initPromise) return initPromise;
@@ -23,7 +24,7 @@ async function getInstance(wasmUrl: string): Promise<MediaInfoInstance> {
 				locateFile: () => string;
 			}) => Promise<MediaInfoInstance>)({
 				format: "object",
-				locateFile: () => wasmUrl,
+				locateFile: () => wasmDataUrl,
 			});
 
 			instance = mi;
@@ -43,13 +44,11 @@ async function getInstance(wasmUrl: string): Promise<MediaInfoInstance> {
 /**
  * Parse a media file buffer using mediainfo.js.
  * @param buffer The file contents as an ArrayBuffer
- * @param wasmUrl Absolute URL to MediaInfoModule.wasm
  */
 export async function parseBuffer(
-	buffer: ArrayBuffer,
-	wasmUrl: string
+	buffer: ArrayBuffer
 ): Promise<MediaInfoResult> {
-	const mi = await getInstance(wasmUrl);
+	const mi = await getInstance();
 
 	return await mi.analyzeData(
 		buffer.byteLength,

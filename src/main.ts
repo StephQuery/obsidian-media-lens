@@ -7,12 +7,6 @@ import type { MediaLensSettings } from "./settings";
 export default class MediaLensPlugin extends Plugin {
 	settings: MediaLensSettings;
 
-	getWasmUrl(): string {
-		const dir = this.manifest.dir ?? "";
-		const wasmPath = normalizePath(`${dir}/MediaInfoModule.wasm`);
-		return this.app.vault.adapter.getResourcePath(wasmPath);
-	}
-
 	async onload() {
 		await this.loadSettings();
 		void this.cleanupTempDir();
