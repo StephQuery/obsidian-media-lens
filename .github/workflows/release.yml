@@ -2,8 +2,8 @@ name: Release
 
 on:
     push:
-        tags:
-            - "[0-9]*.[0-9]*.[0-9]*"
+        branches:
+            - master
 
 permissions:
     contents: write
@@ -17,33 +17,58 @@ jobs:
         steps:
             - uses: actions/checkout@v5
 
+            - name: Get version from manifest
+              id: version
+              run: echo "version=$(jq -r .version manifest.json)" >> $GITHUB_OUTPUT
+
+            - name: Check if tag already exists
+              id: tag_check
+              run: |
+                  if git ls-remote --tags origin | grep -q "refs/tags/${{ steps.version.outputs.version }}$"; then
+                    echo "exists=true" >> $GITHUB_OUTPUT
+                  else
+                    echo "exists=false" >> $GITHUB_OUTPUT
+                  fi
+
             - name: Use Node.js 22.x
+              if: steps.tag_check.outputs.exists == 'false'
               uses: actions/setup-node@v5
               with:
                   node-version: 22.x
                   cache: "npm"
 
             - run: npm ci
+              if: steps.tag_check.outputs.exists == 'false'
+
             - run: npm run build
+              if: steps.tag_check.outputs.exists == 'false'
+
             - run: npm run lint
+              if: steps.tag_check.outputs.exists == 'false'
+
             - run: npm test
+              if: steps.tag_check.outputs.exists == 'false'
 
             - name: Verify build artifacts
+              if: steps.tag_check.outputs.exists == 'false'
               run: |
                   test -f main.js
                   test -f manifest.json
                   test -f styles.css
 
             - name: Generate artifact attestations
+              if: steps.tag_check.outputs.exists == 'false'
               uses: actions/attest-build-provenance@v2
               with:
                   subject-path: |
                       main.js
                       styles.css
 
-            - name: Create release
+            - name: Tag and create release
+              if: steps.tag_check.outputs.exists == 'false'
               uses: softprops/action-gh-release@v2
               with:
+                  tag_name: ${{ steps.version.outputs.version }}
                   generate_release_notes: true
                   files: |
                       main.js
