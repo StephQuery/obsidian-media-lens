@@ -27,7 +27,7 @@ export class SplitViewModal extends Modal {
 	private vidB: HTMLVideoElement;
 	private transport: SyncTransportResult | null = null;
 	private splitPosition = 50;
-	private documentListeners: Array<{ type: string; handler: EventListener }> = [];
+	private documentListeners: Array<{ type: string; handler: EventListener; doc: Document }> = [];
 	/** Original parent elements — videos are returned here on close */
 	private vidAParent: HTMLElement | null = null;
 	private vidBParent: HTMLElement | null = null;
@@ -64,8 +64,8 @@ export class SplitViewModal extends Modal {
 	onClose() {
 		log("onClose: returning video elements to sidebar");
 		if (this.transport) this.transport.stopDrift();
-		for (const { type, handler } of this.documentListeners) {
-			document.removeEventListener(type, handler);
+		for (const { type, handler, doc } of this.documentListeners) {
+			doc.removeEventListener(type, handler);
 		}
 		this.documentListeners = [];
 
@@ -83,8 +83,9 @@ export class SplitViewModal extends Modal {
 	}
 
 	private addDocListener(type: string, handler: EventListener, options?: AddEventListenerOptions) {
-		document.addEventListener(type, handler, options);
-		this.documentListeners.push({ type, handler });
+		const doc = activeDocument;
+		doc.addEventListener(type, handler, options);
+		this.documentListeners.push({ type, handler, doc });
 	}
 
 	private renderSplitView(parent: HTMLElement) {
@@ -206,7 +207,7 @@ export class SplitViewModal extends Modal {
 		const splitX = Math.round(w * (this.splitPosition / 100));
 		log(`captureSplitComposite: canvas ${w}x${h}, splitX=${splitX} (A=${vidA.videoWidth}x${vidA.videoHeight}, B=${vidB.videoWidth}x${vidB.videoHeight})`);
 
-		const canvas = document.createElement("canvas");
+		const canvas = createEl("canvas");
 		canvas.width = w;
 		canvas.height = h;
 		const ctx = canvas.getContext("2d");

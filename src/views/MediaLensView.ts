@@ -41,7 +41,7 @@ export class MediaLensView extends ItemView {
 	primaryFile: LoadedFile | null = null;
 	compareFile: LoadedFile | null = null;
 	private captureStripUrls: string[] = [];
-	private docListeners: Array<{ type: string; handler: EventListener }> = [];
+	private docListeners: Array<{ type: string; handler: EventListener; doc: Document }> = [];
 	private syncEnabled = false;
 	private primaryVideo: HTMLVideoElement | null = null;
 	private compareVideo: HTMLVideoElement | null = null;
@@ -131,13 +131,14 @@ export class MediaLensView extends ItemView {
 	}
 
 	private addDocListener(type: string, handler: EventListener) {
-		document.addEventListener(type, handler);
-		this.docListeners.push({ type, handler });
+		const doc = activeDocument;
+		doc.addEventListener(type, handler);
+		this.docListeners.push({ type, handler, doc });
 	}
 
 	private removeDocListeners() {
-		for (const { type, handler } of this.docListeners) {
-			document.removeEventListener(type, handler);
+		for (const { type, handler, doc } of this.docListeners) {
+			doc.removeEventListener(type, handler);
 		}
 		this.docListeners = [];
 	}
@@ -371,7 +372,7 @@ export class MediaLensView extends ItemView {
 			this.renderSections(this.metadataZone, this.primaryFile.sections);
 		} else {
 			const hint = this.metadataZone.createDiv({ cls: "media-lens-hint" });
-			hint.createEl("span", {
+			hint.createSpan({
 				text: "Supports images, video, audio, and subtitles",
 			});
 		}
@@ -382,14 +383,14 @@ export class MediaLensView extends ItemView {
 
 		const labels = header.createDiv({ cls: "media-lens-synced-labels" });
 		const labelA = labels.createDiv({ cls: "media-lens-synced-label" });
-		labelA.createEl("span", { text: "A", cls: "media-lens-synced-badge" });
-		labelA.createEl("span", { text: fileA.name, cls: "media-lens-synced-name" });
-		labelA.createEl("span", { text: formatSize(fileA.size), cls: "media-lens-synced-size" });
+		labelA.createSpan({ text: "A", cls: "media-lens-synced-badge" });
+		labelA.createSpan({ text: fileA.name, cls: "media-lens-synced-name" });
+		labelA.createSpan({ text: formatSize(fileA.size), cls: "media-lens-synced-size" });
 
 		const labelB = labels.createDiv({ cls: "media-lens-synced-label" });
-		labelB.createEl("span", { text: "B", cls: "media-lens-synced-badge" });
-		labelB.createEl("span", { text: fileB.name, cls: "media-lens-synced-name" });
-		labelB.createEl("span", { text: formatSize(fileB.size), cls: "media-lens-synced-size" });
+		labelB.createSpan({ text: "B", cls: "media-lens-synced-badge" });
+		labelB.createSpan({ text: fileB.name, cls: "media-lens-synced-name" });
+		labelB.createSpan({ text: formatSize(fileB.size), cls: "media-lens-synced-size" });
 
 		const unsyncBtn = header.createEl("button", {
 			cls: "media-lens-btn-clear",
@@ -433,7 +434,7 @@ export class MediaLensView extends ItemView {
 			label = "Add a file above to compare";
 		}
 
-		zone.createEl("span", {
+		zone.createSpan({
 			text: label,
 			cls: "media-lens-drop-label",
 		});
@@ -478,11 +479,11 @@ export class MediaLensView extends ItemView {
 		const header = parent.createDiv({ cls: "media-lens-file-header" });
 
 		const info = header.createDiv({ cls: "media-lens-file-info" });
-		info.createEl("span", {
+		info.createSpan({
 			text: file.name,
 			cls: "media-lens-file-name",
 		});
-		info.createEl("span", {
+		info.createSpan({
 			text: formatSize(file.size),
 			cls: "media-lens-file-size",
 		});
@@ -513,7 +514,7 @@ export class MediaLensView extends ItemView {
 				});
 				img.addEventListener("error", () => {
 					wrapper.empty();
-					wrapper.createEl("span", { text: "Preview unavailable", cls: "media-lens-muted" });
+					wrapper.createSpan({ text: "Preview unavailable", cls: "media-lens-muted" });
 				}, { once: true });
 				break;
 			}
@@ -568,7 +569,7 @@ export class MediaLensView extends ItemView {
 						cls: "media-lens-preview-text",
 					});
 				} catch {
-					wrapper.createEl("span", { text: "Preview unavailable", cls: "media-lens-muted" });
+					wrapper.createSpan({ text: "Preview unavailable", cls: "media-lens-muted" });
 				}
 				break;
 			}
@@ -674,7 +675,7 @@ export class MediaLensView extends ItemView {
 			this.log(`syncToggle: clicked, current=${this.syncEnabled}, switching to ${!this.syncEnabled}`);
 			btn.disabled = true;
 			label.textContent = this.syncEnabled ? "Unsyncing..." : "Syncing...";
-			setTimeout(() => {
+			activeWindow.setTimeout(() => {
 				this.syncEnabled = !this.syncEnabled;
 				this.render();
 			}, 50);
@@ -770,7 +771,7 @@ export class MediaLensView extends ItemView {
 			new Notice("Video not ready for capture");
 			return;
 		}
-		const canvas = document.createElement("canvas");
+		const canvas = createEl("canvas");
 		canvas.width = video.videoWidth;
 		canvas.height = video.videoHeight;
 		const ctx = canvas.getContext("2d");
@@ -811,7 +812,7 @@ export class MediaLensView extends ItemView {
 		}
 		strip.removeClass("media-lens-hidden");
 
-		strip.createEl("span", { text: "Captured frames", cls: "media-lens-capture-label" });
+		strip.createSpan({ text: "Captured frames", cls: "media-lens-capture-label" });
 		const list = strip.createDiv({ cls: "media-lens-capture-list" });
 
 		this.captures.forEach((cap, idx) => {
@@ -833,8 +834,8 @@ export class MediaLensView extends ItemView {
 				const playerLabel = this.compareFile ? (cap.slot === "primary" ? "A" : "B") : "";
 				nameText = playerLabel ? `${playerLabel}: ${file?.name ?? cap.slot}` : (file?.name ?? cap.slot);
 			}
-			info.createEl("span", { text: nameText, cls: "media-lens-capture-filename" });
-			info.createEl("span", { text: `@ ${cap.label}`, cls: "media-lens-capture-time" });
+			info.createSpan({ text: nameText, cls: "media-lens-capture-filename" });
+			info.createSpan({ text: `@ ${cap.label}`, cls: "media-lens-capture-time" });
 
 			const removeBtn = item.createEl("button", {
 				cls: "media-lens-btn-clear",
@@ -1081,7 +1082,7 @@ export class MediaLensView extends ItemView {
 		const accept = slot === "compare" && primaryCategory
 			? getAcceptString(primaryCategory)
 			: getAcceptString(null);
-		const input = document.createElement("input");
+		const input = createEl("input");
 		input.type = "file";
 		input.accept = accept;
 		input.classList.add("media-lens-hidden");
@@ -1100,7 +1101,7 @@ export class MediaLensView extends ItemView {
 
 		window.addEventListener("focus", cleanup, { once: true });
 
-		document.body.appendChild(input);
+		activeDocument.body.appendChild(input);
 		input.click();
 	}
 
@@ -1130,8 +1131,7 @@ export class MediaLensView extends ItemView {
 			this.log(`loadFile: "${name}" slot=${slot} source=${source} category=${category} hasFileRef=${!!fileRef}`);
 			const buffer = await bufferOrPromise;
 			this.log(`loadFile: "${name}" buffer ready, byteLength=${buffer.byteLength}`);
-			const wasmUrl = this.plugin.getWasmUrl();
-			const result = await parseBuffer(buffer, wasmUrl);
+			const result = await parseBuffer(buffer);
 			this.log(`loadFile: "${name}" parse complete, buffer.byteLength after parse=${buffer.byteLength}`);
 			const sections = normalizeTracks(result);
 			this.log(`loadFile: "${name}" sections=${sections.length}`);
