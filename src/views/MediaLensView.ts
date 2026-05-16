@@ -1099,7 +1099,7 @@ export class MediaLensView extends ItemView {
 			cleanup();
 		});
 
-		window.addEventListener("focus", cleanup, { once: true });
+		activeWindow.addEventListener("focus", cleanup, { once: true });
 
 		activeDocument.body.appendChild(input);
 		input.click();

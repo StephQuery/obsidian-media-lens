@@ -1,5 +1,4 @@
 import type { MediaInfoResult, ReadChunkFunc } from "mediainfo.js";
-// @ts-ignore - .wasm imported as data URL by esbuild
 import wasmDataUrl from "mediainfo.js/MediaInfoModule.wasm";
 
 interface MediaInfoInstance {
