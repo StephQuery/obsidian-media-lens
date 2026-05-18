@@ -27,6 +27,7 @@ jobs:
         runs-on: ubuntu-latest
         outputs:
             version: ${{ steps.version.outputs.version }}
+            sha: ${{ steps.sha.outputs.sha }}
 
         steps:
             - uses: actions/checkout@v5
@@ -74,11 +75,16 @@ jobs:
                   git commit -m "chore: bump version to ${{ steps.version.outputs.version }}"
                   git push origin master
 
+            - name: Capture bump commit SHA
+              id: sha
+              run: echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
     release:
         needs: bump
         uses: ./.github/workflows/_build-release.yml
         with:
             version: ${{ needs.bump.outputs.version }}
+            sha: ${{ needs.bump.outputs.sha }}
         permissions:
             contents: write
             id-token: write
