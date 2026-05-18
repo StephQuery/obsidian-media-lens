@@ -1,0 +1,65 @@
+name: _Build and Release
+
+on:
+    workflow_call:
+        inputs:
+            version:
+                required: true
+                type: string
+            sha:
+                description: "Exact commit SHA to checkout and tag. Defaults to master HEAD."
+                required: false
+                type: string
+                default: ""
+
+permissions:
+    contents: write
+    id-token: write
+    attestations: write
+
+jobs:
+    build-and-release:
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v5
+              with:
+                  ref: ${{ inputs.sha != '' && inputs.sha || 'master' }}
+
+            - name: Use Node.js 22.x
+              uses: actions/setup-node@v5
+              with:
+                  node-version: 22.x
+                  cache: "npm"
+
+            - run: npm ci
+
+            - run: npm run build
+
+            - run: npm run lint
+
+            - run: npm test
+
+            - name: Verify build artifacts
+              run: |
+                  test -f main.js
+                  test -f manifest.json
+                  test -f styles.css
+
+            - name: Generate artifact attestations
+              uses: actions/attest-build-provenance@v2
+              with:
+                  subject-path: |
+                      main.js
+                      styles.css
+
+            - name: Create release
+              uses: softprops/action-gh-release@v2
+              with:
+                  tag_name: ${{ inputs.version }}
+                  target_commitish: ${{ inputs.sha != '' && inputs.sha || 'master' }}
+                  generate_release_notes: true
+                  files: |
+                      main.js
+                      manifest.json
+                      styles.css
