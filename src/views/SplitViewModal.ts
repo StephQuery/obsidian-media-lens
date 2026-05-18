@@ -31,6 +31,9 @@ export class SplitViewModal extends Modal {
 	/** Original parent elements — videos are returned here on close */
 	private vidAParent: HTMLElement | null = null;
 	private vidBParent: HTMLElement | null = null;
+	/** Original controls state — restored on close */
+	private vidAControls = true;
+	private vidBControls = true;
 
 	constructor(
 		plugin: MediaLensPlugin,
@@ -52,9 +55,11 @@ export class SplitViewModal extends Modal {
 		modalEl.addClass("media-lens-wipe-modal");
 		contentEl.empty();
 
-		// Remember original parents so we can return videos on close
+		// Remember original parents and controls state so we can restore on close
 		this.vidAParent = this.vidA.parentElement;
 		this.vidBParent = this.vidB.parentElement;
+		this.vidAControls = this.vidA.controls;
+		this.vidBControls = this.vidB.controls;
 
 		this.renderSplitView(contentEl);
 		this.renderTransport(contentEl);
@@ -72,7 +77,8 @@ export class SplitViewModal extends Modal {
 		// Strip split view CSS classes before returning
 		this.vidA.removeClass("media-lens-wipe-video", "media-lens-wipe-video-a");
 		this.vidB.removeClass("media-lens-wipe-video", "media-lens-wipe-video-b");
-		this.vidA.setCssProps({ "--wipe-clip": "" });
+		this.vidA.controls = this.vidAControls;
+		this.vidB.controls = this.vidBControls;
 
 		// Return videos to their original sidebar parents
 		if (this.vidAParent) this.vidAParent.appendChild(this.vidA);
@@ -96,10 +102,11 @@ export class SplitViewModal extends Modal {
 		this.vidB.controls = false;
 		viewport.appendChild(this.vidB);
 
-		// Transfer video A (top layer, clipped) from sidebar into viewport
+		// Transfer video A (top layer) into a clipping wrapper — avoids clip-path for mobile compat
+		const wrapperA = viewport.createDiv({ cls: "media-lens-wipe-video-a-wrapper" });
 		this.vidA.addClass("media-lens-wipe-video", "media-lens-wipe-video-a");
 		this.vidA.controls = false;
-		viewport.appendChild(this.vidA);
+		wrapperA.appendChild(this.vidA);
 
 		// Divider
 		const divider = viewport.createDiv({ cls: "media-lens-wipe-divider" });
@@ -110,15 +117,13 @@ export class SplitViewModal extends Modal {
 		const labelB = viewport.createDiv({ cls: "media-lens-wipe-label media-lens-wipe-label-b" });
 		labelB.createSpan({ text: "B" });
 
-		// Split drag — update CSS variables that drive clip-path and divider position
+		// Split drag — update CSS variables that drive wipe width and divider position
 		let dragging = false;
 
 		const updateSplit = (pct: number) => {
 			const clamped = Math.max(0, Math.min(100, pct));
 			this.splitPosition = clamped;
-			if (this.vidA) {
-				this.vidA.setCssProps({ "--wipe-clip": `inset(0 ${100 - clamped}% 0 0)` });
-			}
+			wrapperA.setCssProps({ "--wipe-pct": `${clamped}` });
 			divider.setCssProps({ "--wipe-pos": `${clamped}%` });
 			labelA.setCssProps({ "--wipe-label-a": `${100 - clamped + 2}%` });
 			labelB.setCssProps({ "--wipe-label-b": `${clamped + 2}%` });

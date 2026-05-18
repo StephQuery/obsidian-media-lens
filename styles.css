@@ -453,9 +453,19 @@
 	object-fit: cover;
 }
 
-.media-lens-wipe-video-a {
+/* Wrapper clips video A to the left portion; video extends to full viewport width via CSS math */
+.media-lens-wipe-video-a-wrapper {
+	position: absolute;
+	top: 0;
+	left: 0;
+	height: 100%;
+	width: calc(var(--wipe-pct, 50) * 1%);
+	overflow: hidden;
 	z-index: 2;
-	clip-path: var(--wipe-clip, inset(0 50% 0 0));
+}
+
+.media-lens-wipe-video-a {
+	width: calc(10000% / max(var(--wipe-pct, 50), 0.001));
 }
 
 .media-lens-wipe-video-b {
