@@ -16,7 +16,7 @@ permissions:
     attestations: write
 
 jobs:
-    bump-and-release:
+    bump:
         if: |
             github.event.pull_request.merged == true &&
             (
@@ -25,6 +25,8 @@ jobs:
               contains(github.event.pull_request.labels.*.name, 'bump:major')
             )
         runs-on: ubuntu-latest
+        outputs:
+            version: ${{ steps.version.outputs.version }}
 
         steps:
             - uses: actions/checkout@v5
@@ -54,8 +56,11 @@ jobs:
                     echo "type=patch" >> $GITHUB_OUTPUT
                   fi
 
-            - name: Bump version
+            - name: Bump version files
               run: npm version ${{ steps.bump_type.outputs.type }} --no-git-tag-version
+
+            - name: Validate build passes with new version
+              run: npm run build && npm run lint && npm test
 
             - name: Get new version
               id: version
@@ -69,31 +74,12 @@ jobs:
                   git commit -m "chore: bump version to ${{ steps.version.outputs.version }}"
                   git push origin master
 
-            - run: npm run build
-
-            - run: npm run lint
-
-            - run: npm test
-
-            - name: Verify build artifacts
-              run: |
-                  test -f main.js
-                  test -f manifest.json
-                  test -f styles.css
-
-            - name: Generate artifact attestations
-              uses: actions/attest-build-provenance@v2
-              with:
-                  subject-path: |
-                      main.js
-                      styles.css
-
-            - name: Create release
-              uses: softprops/action-gh-release@v2
-              with:
-                  tag_name: ${{ steps.version.outputs.version }}
-                  generate_release_notes: true
-                  files: |
-                      main.js
-                      manifest.json
-                      styles.css
+    release:
+        needs: bump
+        uses: ./.github/workflows/_build-release.yml
+        with:
+            version: ${{ needs.bump.outputs.version }}
+        permissions:
+            contents: write
+            id-token: write
+            attestations: write

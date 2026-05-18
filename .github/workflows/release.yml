@@ -15,8 +15,11 @@ permissions:
     attestations: write
 
 jobs:
-    release:
+    check:
         runs-on: ubuntu-latest
+        outputs:
+            version: ${{ steps.version.outputs.version }}
+            exists: ${{ steps.tag_check.outputs.exists }}
 
         steps:
             - uses: actions/checkout@v5
@@ -34,47 +37,13 @@ jobs:
                     echo "exists=false" >> $GITHUB_OUTPUT
                   fi
 
-            - name: Use Node.js 22.x
-              if: steps.tag_check.outputs.exists == 'false'
-              uses: actions/setup-node@v5
-              with:
-                  node-version: 22.x
-                  cache: "npm"
-
-            - run: npm ci
-              if: steps.tag_check.outputs.exists == 'false'
-
-            - run: npm run build
-              if: steps.tag_check.outputs.exists == 'false'
-
-            - run: npm run lint
-              if: steps.tag_check.outputs.exists == 'false'
-
-            - run: npm test
-              if: steps.tag_check.outputs.exists == 'false'
-
-            - name: Verify build artifacts
-              if: steps.tag_check.outputs.exists == 'false'
-              run: |
-                  test -f main.js
-                  test -f manifest.json
-                  test -f styles.css
-
-            - name: Generate artifact attestations
-              if: steps.tag_check.outputs.exists == 'false'
-              uses: actions/attest-build-provenance@v2
-              with:
-                  subject-path: |
-                      main.js
-                      styles.css
-
-            - name: Tag and create release
-              if: steps.tag_check.outputs.exists == 'false'
-              uses: softprops/action-gh-release@v2
-              with:
-                  tag_name: ${{ steps.version.outputs.version }}
-                  generate_release_notes: true
-                  files: |
-                      main.js
-                      manifest.json
-                      styles.css
+    release:
+        needs: check
+        if: needs.check.outputs.exists == 'false'
+        uses: ./.github/workflows/_build-release.yml
+        with:
+            version: ${{ needs.check.outputs.version }}
+        permissions:
+            contents: write
+            id-token: write
+            attestations: write
