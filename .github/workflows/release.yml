@@ -43,6 +43,7 @@ jobs:
         uses: ./.github/workflows/_build-release.yml
         with:
             version: ${{ needs.check.outputs.version }}
+            sha: ${{ github.sha }}
         permissions:
             contents: write
             id-token: write
