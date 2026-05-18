@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-media-lens",
-	"version": "1.1.3",
+	"version": "1.2.0",
 	"description": "Inspect and compare metadata for images, video, audio, and subtitle files in Obsidian.",
 	"main": "main.js",
 	"type": "module",
